@@ -167,7 +167,6 @@ export function App() {
   // Handler: Import Garments Extracted from Google Photos
   const handleImportFromGooglePhotos = (newGarments: Garment[]) => {
     setWardrobe(prev => [...newGarments, ...prev]);
-    setActiveTab('wardrobe');
   };
 
   // Handler: Save / Unsave Outfit
@@ -246,6 +245,7 @@ export function App() {
         {activeTab === 'google_photos' && (
           <GooglePhotosScanner
             onImportGarments={handleImportFromGooglePhotos}
+            onNavigateToWardrobe={() => setActiveTab('wardrobe')}
           />
         )}
       </main>

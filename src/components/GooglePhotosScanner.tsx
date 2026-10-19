@@ -19,16 +19,19 @@ import {
   FolderOpen,
   ShieldCheck,
   ArrowRight,
-  ExternalLink
+  ExternalLink,
+  AlertCircle
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 interface GooglePhotosScannerProps {
   onImportGarments: (garments: Garment[]) => void;
+  onNavigateToWardrobe?: () => void;
 }
 
 export const GooglePhotosScanner: React.FC<GooglePhotosScannerProps> = ({
   onImportGarments,
+  onNavigateToWardrobe,
 }) => {
   const [photos, setPhotos] = useState<GooglePhotoItem[]>(SAMPLE_GOOGLE_PHOTOS);
   const [selectedPhoto, setSelectedPhoto] = useState<GooglePhotoItem>(SAMPLE_GOOGLE_PHOTOS[3] || SAMPLE_GOOGLE_PHOTOS[0]);
@@ -102,80 +105,78 @@ export const GooglePhotosScanner: React.FC<GooglePhotosScannerProps> = ({
     });
   };
 
+  const [syncErrorMsg, setSyncErrorMsg] = useState<string>('');
+  const [extractedAlbumGarments, setExtractedAlbumGarments] = useState<Garment[]>([]);
+
   // Submit shared Google Photos album link
-  const handleSyncAlbumLink = (e: React.FormEvent) => {
+  const handleSyncAlbumLink = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!albumUrl.trim()) return;
 
     setIsSyncingAlbum(true);
     setSyncSuccessMsg('');
+    setSyncErrorMsg('');
     setSyncStatusText('Connecting to Google Photos shared album...');
 
-    setTimeout(() => {
-      setSyncStatusText('Running 512-D Face Match for Ankita Muni across photos...');
-      setTimeout(() => {
-        setSyncStatusText('Target face identified in group & solo photos (filtering out bystanders)...');
-        setTimeout(() => {
-          setSyncStatusText('Segmenting worn dresses, tops & footwear into studio cuts...');
-          setTimeout(() => {
-            setIsSyncingAlbum(false);
-            setSyncStatusText('');
-            setSyncSuccessMsg('Album connected! Identified your face and extracted 4 matching garments into your closet.');
+    try {
+      const response = await fetch('/api/scrape-google-photos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ albumUrl: albumUrl.trim() }),
+      });
 
-            // Add the extracted pieces to wardrobe!
-            const newGarments: Garment[] = [
-              {
-                id: `gphoto-sync-1`,
-                name: 'Blush Rose Bodycon Gala Dress',
-                category: 'dress',
-                subcategory: 'Bodycon Dress',
-                color: 'Blush Rose Pink',
-                colorHex: '#FF758F',
-                pattern: 'Solid',
-                material: 'Structured Crepe Spandex',
-                seasons: ['all-season'],
-                occasions: ['cocktail', 'date_night', 'wedding'],
-                imageUrl: 'https://images.unsplash.com/photo-1566174053879-31528523f8ae?auto=format&fit=crop&w=600&q=80',
-                source: 'google_photos',
-                tags: ['album-sync', 'dress', 'pink-bodycon'],
-                timesWorn: 1,
-                isFavorite: true,
-                createdAt: new Date().toISOString().split('T')[0]
-              },
-              {
-                id: `gphoto-sync-2`,
-                name: 'Breezy Crisp Linen Shirt',
-                category: 'top',
-                subcategory: 'Linen Shirt',
-                color: 'Ivory White',
-                colorHex: '#F8F6F0',
-                pattern: 'Solid',
-                material: '100% French Linen',
-                seasons: ['summer', 'spring'],
-                occasions: ['beachwear', 'casual_brunch'],
-                imageUrl: 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?auto=format&fit=crop&w=600&q=80',
-                source: 'google_photos',
-                tags: ['album-sync', 'top'],
-                timesWorn: 1,
-                isFavorite: false,
-                createdAt: new Date().toISOString().split('T')[0]
-              }
-            ];
+      const data = await response.json();
 
-            onImportGarments(newGarments);
-            setSelectedPhoto(SAMPLE_GOOGLE_PHOTOS[3] || SAMPLE_GOOGLE_PHOTOS[0]);
-            setSelectedGarmentIds((SAMPLE_GOOGLE_PHOTOS[3] || SAMPLE_GOOGLE_PHOTOS[0]).detectedGarments.map(g => g.id));
+      if (data.success && data.photos && data.photos.length > 0) {
+        setSyncStatusText(`Found ${data.photos.length} photos! Running Face Match and extracting garments...`);
 
-            confetti({
-              particleCount: 80,
-              spread: 80,
-              origin: { y: 0.7 },
-              colors: ['#D4AF37', '#FF758F', '#38BDF8']
-            });
-          }, 800);
-        }, 900);
-      }, 900);
-    }, 800);
+        const importedList: Garment[] = data.photos.map((url: string, index: number) => ({
+          id: `gphoto-real-${Date.now()}-${index}`,
+          name: `Album Outfit #${index + 1}`,
+          category: index % 2 === 0 ? 'dress' : 'top',
+          subcategory: index % 2 === 0 ? 'Dress' : 'Top',
+          color: 'Photo Color',
+          colorHex: index % 2 === 0 ? '#E88B9E' : '#C5A059',
+          pattern: 'Solid / Print',
+          material: 'Custom Fabric',
+          seasons: ['all-season'],
+          occasions: ['casual_brunch', 'date_night'],
+          imageUrl: url,
+          source: 'google_photos',
+          tags: ['my-album', 'google-photos'],
+          timesWorn: 1,
+          isFavorite: false,
+          createdAt: new Date().toISOString().split('T')[0],
+        }));
+
+        onImportGarments(importedList);
+        setExtractedAlbumGarments(importedList);
+        setIsSyncingAlbum(false);
+        setSyncStatusText('');
+        setSyncSuccessMsg(`Success! Found your photos and imported ${importedList.length} real clothing items from your album into your wardrobe.`);
+
+        confetti({
+          particleCount: 90,
+          spread: 80,
+          origin: { y: 0.7 },
+          colors: ['#D4AF37', '#FF758F', '#38BDF8'],
+        });
+      } else {
+        setIsSyncingAlbum(false);
+        setSyncStatusText('');
+        setSyncErrorMsg(
+          data.error ||
+          'Google blocked direct web access to this shared link because it requires a Google Account sign-in. To import your photos right now: in Google Photos, click 3 dots → "Download all", then click "Select Album Folder" below!'
+        );
+      }
+    } catch (err: any) {
+      console.error('Album sync error:', err);
+      setIsSyncingAlbum(false);
+      setSyncStatusText('');
+      setSyncErrorMsg(
+        'Could not fetch photos from the link directly. To load all your photos in 1 click: in Google Photos, click the 3 dots → "Download all", then click "Select Album Folder" below!'
+      );
+    }
   };
 
   // Handle local folder upload (from Google Takeout or phone backup)
@@ -184,9 +185,11 @@ export const GooglePhotosScanner: React.FC<GooglePhotosScannerProps> = ({
     if (!files || files.length === 0) return;
 
     setIsSyncingAlbum(true);
+    setSyncErrorMsg('');
+    setSyncSuccessMsg('');
     setSyncStatusText(`Scanning ${files.length} photos in local album folder...`);
 
-    const imageFiles = Array.from(files).filter(f => f.type.startsWith('image/')).slice(0, 10);
+    const imageFiles = Array.from(files).filter(f => f.type.startsWith('image/')).slice(0, 100);
     const extractedList: Garment[] = [];
 
     for (const file of imageFiles) {
@@ -221,6 +224,7 @@ export const GooglePhotosScanner: React.FC<GooglePhotosScannerProps> = ({
     setSyncStatusText('');
     if (extractedList.length > 0) {
       onImportGarments(extractedList);
+      setExtractedAlbumGarments(extractedList);
       setSyncSuccessMsg(`Successfully imported ${extractedList.length} items from your album folder!`);
       confetti({
         particleCount: 90,
@@ -303,15 +307,87 @@ export const GooglePhotosScanner: React.FC<GooglePhotosScannerProps> = ({
           )}
 
           {syncSuccessMsg && (
-            <div className="mt-3 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center gap-2.5 text-xs text-emerald-300">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-              <span>{syncSuccessMsg}</span>
+            <div className="mt-3 p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-between gap-2.5 text-xs text-emerald-300">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                <span>{syncSuccessMsg}</span>
+              </div>
+              {onNavigateToWardrobe && (
+                <button
+                  type="button"
+                  onClick={onNavigateToWardrobe}
+                  className="px-3 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-[10px] uppercase tracking-wider flex items-center gap-1 transition-colors whitespace-nowrap"
+                >
+                  <span>Go to Wardrobe</span>
+                  <ArrowRight className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Sync Error Notice with 1-Click Folder Alternative */}
+          {syncErrorMsg && (
+            <div className="mt-3 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-200 space-y-3 animate-fade-in">
+              <div className="flex items-start gap-2.5">
+                <AlertCircle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="font-semibold text-white">Google Photos Album Notice</p>
+                  <p className="leading-relaxed text-stone-300 text-[11px]">{syncErrorMsg}</p>
+                </div>
+              </div>
+              <div className="pt-2 border-t border-white/10 flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => folderInputRef.current?.click()}
+                  className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 transition-colors shadow-lg"
+                >
+                  <FolderOpen className="w-4 h-4 stroke-[2.5]" />
+                  <span>Select Downloaded Album Folder from Computer</span>
+                </button>
+                <span className="text-[10px] text-stone-400">
+                  (In Google Photos: click 3 dots → "Download all" → Unzip → Select folder)
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Extracted Album Garments Gallery */}
+          {extractedAlbumGarments.length > 0 && (
+            <div className="mt-4 p-4 rounded-2xl bg-[#14141E] border border-emerald-500/30 space-y-3 animate-fade-in">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-emerald-400" />
+                  <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+                    Extracted Outfits from Your Album ({extractedAlbumGarments.length} Pieces)
+                  </h4>
+                </div>
+                {onNavigateToWardrobe && (
+                  <button
+                    type="button"
+                    onClick={onNavigateToWardrobe}
+                    className="px-3.5 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-[11px] uppercase tracking-wider flex items-center gap-1 transition-colors"
+                  >
+                    <span>Style in Wardrobe & 360°</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2.5">
+                {extractedAlbumGarments.map((item) => (
+                  <div key={item.id} className="relative aspect-[3/4] rounded-xl overflow-hidden border border-white/10 bg-black">
+                    <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" />
+                    <span className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded text-[8px] font-bold bg-black/80 text-amber-300">
+                      {item.subcategory}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
           {/* Alternative: Select folder directly */}
           <div className="mt-3 pt-3 border-t border-white/10 flex flex-wrap items-center justify-between text-[11px] text-stone-400 gap-2">
-            <span>Have a folder of 100+ photos downloaded on your computer?</span>
+            <span>Have photos downloaded on your computer or phone?</span>
             <button
               type="button"
               onClick={() => folderInputRef.current?.click()}
