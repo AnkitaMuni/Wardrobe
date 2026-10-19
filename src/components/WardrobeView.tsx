@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { Garment, GarmentCategory, OccasionType } from '../types';
-import { processDroppedImage, guessCategoryAndNameFromFilename } from '../utils/imageUtils';
+import { processDroppedImage, guessCategoryAndNameFromFilename, normalizeImageUrl } from '../utils/imageUtils';
 import { 
   Plus, 
   Search, 
@@ -420,9 +420,19 @@ export const WardrobeView: React.FC<WardrobeViewProps> = ({
                 {/* Image Container */}
                 <div className="relative aspect-[3/4] w-full rounded-2xl overflow-hidden bg-stone-900 mb-2.5">
                   <img
-                    src={item.imageUrl}
+                    src={normalizeImageUrl(item.imageUrl)}
                     alt={item.name}
+                    referrerPolicy="no-referrer"
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    onError={(e) => {
+                      const target = e.currentTarget;
+                      if (item.imageUrl.startsWith('/api/image-proxy')) {
+                        const orig = decodeURIComponent(item.imageUrl.replace('/api/image-proxy?url=', ''));
+                        if (target.src !== orig) {
+                          target.src = orig;
+                        }
+                      }
+                    }}
                   />
 
                   {/* Favorite Toggle */}

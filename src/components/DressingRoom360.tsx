@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OutfitPair, Garment, ModelBodySettings } from '../types';
+import { normalizeImageUrl } from '../utils/imageUtils';
 import { 
   Rotate3d, 
   Sun, 
@@ -255,7 +256,7 @@ export const DressingRoom360: React.FC<DressingRoom360Props> = ({
     let dressTexture: THREE.Texture | undefined = undefined;
     if (activeDress?.imageUrl) {
       try {
-        dressTexture = textureLoader.load(activeDress.imageUrl);
+        dressTexture = textureLoader.load(normalizeImageUrl(activeDress.imageUrl));
         dressTexture.wrapS = THREE.RepeatWrapping;
         dressTexture.wrapT = THREE.RepeatWrapping;
       } catch (err) {
@@ -292,7 +293,7 @@ export const DressingRoom360: React.FC<DressingRoom360Props> = ({
     let topTexture: THREE.Texture | undefined = undefined;
     if (activeTop?.imageUrl) {
       try {
-        topTexture = textureLoader.load(activeTop.imageUrl);
+        topTexture = textureLoader.load(normalizeImageUrl(activeTop.imageUrl));
         topTexture.wrapS = THREE.RepeatWrapping;
         topTexture.wrapT = THREE.RepeatWrapping;
       } catch (err) {
@@ -639,12 +640,13 @@ export const DressingRoom360: React.FC<DressingRoom360Props> = ({
                     <img
                       src={
                         activeDress
-                          ? activeDress.imageUrl
+                          ? normalizeImageUrl(activeDress.imageUrl)
                           : activeTop
-                          ? activeTop.imageUrl
+                          ? normalizeImageUrl(activeTop.imageUrl)
                           : 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=600&q=80'
                       }
                       alt="Front Angle Virtual Try-on"
+                      referrerPolicy="no-referrer"
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20" />
@@ -666,12 +668,13 @@ export const DressingRoom360: React.FC<DressingRoom360Props> = ({
                     <img
                       src={
                         activeBottom
-                          ? activeBottom.imageUrl
+                          ? normalizeImageUrl(activeBottom.imageUrl)
                           : activeDress
-                          ? activeDress.imageUrl
+                          ? normalizeImageUrl(activeDress.imageUrl)
                           : 'https://images.unsplash.com/photo-1509551388413-e18d0ac5d495?auto=format&fit=crop&w=600&q=80'
                       }
                       alt="Three quarter angle try on"
+                      referrerPolicy="no-referrer"
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20" />
@@ -693,12 +696,13 @@ export const DressingRoom360: React.FC<DressingRoom360Props> = ({
                     <img
                       src={
                         activeOuter
-                          ? activeOuter.imageUrl
+                          ? normalizeImageUrl(activeOuter.imageUrl)
                           : activeDress
-                          ? activeDress.imageUrl
+                          ? normalizeImageUrl(activeDress.imageUrl)
                           : 'https://images.unsplash.com/photo-1544441893-675973e31985?auto=format&fit=crop&w=600&q=80'
                       }
                       alt="Back profile try on"
+                      referrerPolicy="no-referrer"
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20" />
@@ -738,8 +742,9 @@ export const DressingRoom360: React.FC<DressingRoom360Props> = ({
               {activeTop && (
                 <div className="flex items-center gap-3 p-2.5 rounded-2xl bg-white/5 border border-white/10 hover:border-amber-500/30 transition-colors">
                   <img
-                    src={activeTop.imageUrl}
+                    src={normalizeImageUrl(activeTop.imageUrl)}
                     alt={activeTop.name}
+                    referrerPolicy="no-referrer"
                     className="w-14 h-14 rounded-xl object-cover border border-white/10"
                   />
                   <div className="flex-1 min-w-0">
@@ -767,8 +772,9 @@ export const DressingRoom360: React.FC<DressingRoom360Props> = ({
               {activeBottom && (
                 <div className="flex items-center gap-3 p-2.5 rounded-2xl bg-white/5 border border-white/10 hover:border-amber-500/30 transition-colors">
                   <img
-                    src={activeBottom.imageUrl}
+                    src={normalizeImageUrl(activeBottom.imageUrl)}
                     alt={activeBottom.name}
+                    referrerPolicy="no-referrer"
                     className="w-14 h-14 rounded-xl object-cover border border-white/10"
                   />
                   <div className="flex-1 min-w-0">
@@ -796,8 +802,9 @@ export const DressingRoom360: React.FC<DressingRoom360Props> = ({
               {activeDress && (
                 <div className="flex items-center gap-3 p-2.5 rounded-2xl bg-white/5 border border-white/10 hover:border-amber-500/30 transition-colors">
                   <img
-                    src={activeDress.imageUrl}
+                    src={normalizeImageUrl(activeDress.imageUrl)}
                     alt={activeDress.name}
+                    referrerPolicy="no-referrer"
                     className="w-14 h-14 rounded-xl object-cover border border-white/10"
                   />
                   <div className="flex-1 min-w-0">
@@ -825,8 +832,9 @@ export const DressingRoom360: React.FC<DressingRoom360Props> = ({
               {activeOuter && (
                 <div className="flex items-center gap-3 p-2.5 rounded-2xl bg-white/5 border border-white/10 hover:border-amber-500/30 transition-colors">
                   <img
-                    src={activeOuter.imageUrl}
+                    src={normalizeImageUrl(activeOuter.imageUrl)}
                     alt={activeOuter.name}
+                    referrerPolicy="no-referrer"
                     className="w-14 h-14 rounded-xl object-cover border border-white/10"
                   />
                   <div className="flex-1 min-w-0">
@@ -854,8 +862,9 @@ export const DressingRoom360: React.FC<DressingRoom360Props> = ({
               {activeFootwear && (
                 <div className="flex items-center gap-3 p-2.5 rounded-2xl bg-white/5 border border-white/10 hover:border-amber-500/30 transition-colors">
                   <img
-                    src={activeFootwear.imageUrl}
+                    src={normalizeImageUrl(activeFootwear.imageUrl)}
                     alt={activeFootwear.name}
+                    referrerPolicy="no-referrer"
                     className="w-14 h-14 rounded-xl object-cover border border-white/10"
                   />
                   <div className="flex-1 min-w-0">
@@ -883,8 +892,9 @@ export const DressingRoom360: React.FC<DressingRoom360Props> = ({
               {activeAccessory && (
                 <div className="flex items-center gap-3 p-2.5 rounded-2xl bg-white/5 border border-white/10 hover:border-amber-500/30 transition-colors">
                   <img
-                    src={activeAccessory.imageUrl}
+                    src={normalizeImageUrl(activeAccessory.imageUrl)}
                     alt={activeAccessory.name}
+                    referrerPolicy="no-referrer"
                     className="w-14 h-14 rounded-xl object-cover border border-white/10"
                   />
                   <div className="flex-1 min-w-0">

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Garment, OutfitPair } from './types';
 import { INITIAL_WARDROBE, DEMO_WARDROBE } from './data/wardrobeSeed';
+import { normalizeImageUrl } from './utils/imageUtils';
 import { Navbar } from './components/Navbar';
 import { WardrobeView } from './components/WardrobeView';
 import { OccasionStylist } from './components/OccasionStylist';
@@ -14,7 +15,14 @@ export function App() {
   const [wardrobe, setWardrobe] = useState<Garment[]>(() => {
     try {
       const saved = localStorage.getItem('wardrobe_items');
-      return saved ? JSON.parse(saved) : INITIAL_WARDROBE;
+      if (saved) {
+        const parsed: Garment[] = JSON.parse(saved);
+        return parsed.map(item => ({
+          ...item,
+          imageUrl: normalizeImageUrl(item.imageUrl),
+        }));
+      }
+      return INITIAL_WARDROBE;
     } catch {
       return INITIAL_WARDROBE;
     }
@@ -166,7 +174,11 @@ export function App() {
 
   // Handler: Import Garments Extracted from Google Photos
   const handleImportFromGooglePhotos = (newGarments: Garment[]) => {
-    setWardrobe(prev => [...newGarments, ...prev]);
+    const normalized = newGarments.map(g => ({
+      ...g,
+      imageUrl: normalizeImageUrl(g.imageUrl),
+    }));
+    setWardrobe(prev => [...normalized, ...prev]);
   };
 
   // Handler: Save / Unsave Outfit

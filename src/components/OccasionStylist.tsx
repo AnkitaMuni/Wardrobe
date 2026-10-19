@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Garment, OutfitPair, OccasionType } from '../types';
 import { OCCASIONS_LIST, OccasionConfig } from '../data/occasions';
 import { generateOccasionOutfits } from '../utils/outfitEngine';
+import { normalizeImageUrl } from '../utils/imageUtils';
 import { 
   Sparkles, 
   Search, 
@@ -274,8 +275,9 @@ export const OccasionStylist: React.FC<OccasionStylistProps> = ({
                       >
                         <div className="relative aspect-[3/4] rounded-xl overflow-hidden bg-stone-900 mb-2">
                           <img
-                            src={piece.imageUrl}
+                            src={normalizeImageUrl(piece.imageUrl)}
                             alt={piece.name}
+                            referrerPolicy="no-referrer"
                             className="w-full h-full object-cover group-hover/piece:scale-105 transition-transform duration-500"
                           />
                           <span className="absolute top-1.5 left-1.5 px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider bg-black/70 text-white backdrop-blur-md">

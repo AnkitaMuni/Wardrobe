@@ -1,6 +1,23 @@
 import { GarmentCategory } from '../types';
 
 /**
+ * Normalizes image URLs:
+ * If an image points to Google Photos CDN (lh3.googleusercontent.com) directly,
+ * route it through the server proxy (/api/image-proxy?url=...) so that
+ * HTTP 403 anti-hotlinking blocks and CORS canvas taint errors are completely bypassed.
+ */
+export function normalizeImageUrl(url: string | undefined): string {
+  if (!url) return '';
+  // If already proxied, return as-is
+  if (url.startsWith('/api/image-proxy')) return url;
+  // If it's a direct Google Photos CDN link, wrap with proxy
+  if (url.startsWith('https://lh3.googleusercontent.com')) {
+    return `/api/image-proxy?url=${encodeURIComponent(url)}`;
+  }
+  return url;
+}
+
+/**
  * Resizes an image file using an offscreen canvas to optimize storage size (around 60-100KB per image)
  * and extracts the dominant color (hex + friendly name).
  */

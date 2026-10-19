@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Garment, OutfitPair } from '../types';
 import { pairSpecificGarment } from '../utils/outfitEngine';
+import { normalizeImageUrl } from '../utils/imageUtils';
 import { 
   Sparkles, 
   Search, 
@@ -147,8 +148,9 @@ export const PairThisItem: React.FC<PairThisItemProps> = ({
               >
                 <div className="relative aspect-square rounded-xl overflow-hidden mb-1.5 bg-stone-900">
                   <img
-                    src={garment.imageUrl}
+                    src={normalizeImageUrl(garment.imageUrl)}
                     alt={garment.name}
+                    referrerPolicy="no-referrer"
                     className="w-full h-full object-cover"
                   />
                   {isSelected && (
@@ -170,8 +172,9 @@ export const PairThisItem: React.FC<PairThisItemProps> = ({
         <div className="rounded-3xl bg-[#14141C] border border-amber-500/30 p-6 shadow-2xl flex flex-col md:flex-row items-center gap-6">
           <div className="relative w-32 h-32 md:w-36 md:h-36 rounded-2xl overflow-hidden border border-amber-500/40 shadow-xl flex-shrink-0">
             <img
-              src={selectedAnchor.imageUrl}
+              src={normalizeImageUrl(selectedAnchor.imageUrl)}
               alt={selectedAnchor.name}
+              referrerPolicy="no-referrer"
               className="w-full h-full object-cover"
             />
             <span className="absolute bottom-2 left-2 px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider bg-black/80 text-amber-300">
@@ -274,8 +277,9 @@ export const PairThisItem: React.FC<PairThisItemProps> = ({
                             }`}
                           >
                             <img
-                              src={piece.imageUrl}
+                              src={normalizeImageUrl(piece.imageUrl)}
                               alt={piece.name}
+                              referrerPolicy="no-referrer"
                               className="w-full h-full object-cover"
                             />
                             <span className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded text-[8px] font-bold uppercase bg-black/80 text-white">

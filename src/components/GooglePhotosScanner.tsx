@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { SAMPLE_GOOGLE_PHOTOS } from '../data/samplePhotos';
 import { GooglePhotoItem, ExtractedGarmentCandidate, Garment } from '../types';
-import { processDroppedImage, guessCategoryAndNameFromFilename } from '../utils/imageUtils';
+import { processDroppedImage, guessCategoryAndNameFromFilename, normalizeImageUrl } from '../utils/imageUtils';
 import { 
   Camera, 
   Scan, 
@@ -141,7 +141,7 @@ export const GooglePhotosScanner: React.FC<GooglePhotosScannerProps> = ({
           material: 'Custom Fabric',
           seasons: ['all-season'],
           occasions: ['casual_brunch', 'date_night'],
-          imageUrl: url,
+          imageUrl: normalizeImageUrl(url),
           source: 'google_photos',
           tags: ['my-album', 'google-photos'],
           timesWorn: 1,
@@ -375,7 +375,12 @@ export const GooglePhotosScanner: React.FC<GooglePhotosScannerProps> = ({
               <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2.5">
                 {extractedAlbumGarments.map((item) => (
                   <div key={item.id} className="relative aspect-[3/4] rounded-xl overflow-hidden border border-white/10 bg-black">
-                    <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" />
+                    <img
+                      src={normalizeImageUrl(item.imageUrl)}
+                      alt={item.name}
+                      referrerPolicy="no-referrer"
+                      className="w-full h-full object-cover"
+                    />
                     <span className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded text-[8px] font-bold bg-black/80 text-amber-300">
                       {item.subcategory}
                     </span>

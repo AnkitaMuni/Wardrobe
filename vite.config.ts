@@ -66,7 +66,7 @@ function googlePhotosProxyPlugin(): Plugin {
 
             console.log(`[Closet AI] Discovered ${uniqueUrls.length} photos in album.`);
 
-            const photoUrls = uniqueUrls.slice(0, 40).map(u => `${u}=w1000-h1200-no`);
+            const photoUrls = uniqueUrls.slice(0, 50).map(u => `/api/image-proxy?url=${encodeURIComponent(`${u}=s1200`)}`);
 
             res.statusCode = 200;
             res.setHeader('Content-Type', 'application/json');
@@ -85,6 +85,59 @@ function googlePhotosProxyPlugin(): Plugin {
             res.end(JSON.stringify({ success: false, error: err.message || 'Failed to parse album' }));
           }
         });
+      });
+
+      // Direct Image Proxy: Streams Google Photos CDN images server-side without a Referer header
+      // This eliminates the 403 Forbidden hotlink block and satisfies CORS for WebGL/Three.js textures
+      server.middlewares.use('/api/image-proxy', async (req, res) => {
+        if (req.method === 'OPTIONS') {
+          res.statusCode = 204;
+          res.setHeader('Access-Control-Allow-Origin', '*');
+          res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+          res.end();
+          return;
+        }
+
+        try {
+          const reqUrl = new URL(req.url || '', 'http://localhost');
+          const targetUrl = reqUrl.searchParams.get('url');
+
+          if (!targetUrl) {
+            res.statusCode = 400;
+            res.setHeader('Content-Type', 'text/plain');
+            res.end('Missing url query parameter');
+            return;
+          }
+
+          const imageResponse = await fetch(targetUrl, {
+            redirect: 'follow',
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+              'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+              'Accept-Language': 'en-US,en;q=0.9',
+            }
+          });
+
+          if (!imageResponse.ok) {
+            res.statusCode = imageResponse.status;
+            res.end(`Image upstream error: ${imageResponse.status}`);
+            return;
+          }
+
+          const contentType = imageResponse.headers.get('content-type') || 'image/jpeg';
+          const arrayBuffer = await imageResponse.arrayBuffer();
+
+          res.statusCode = 200;
+          res.setHeader('Content-Type', contentType);
+          res.setHeader('Cache-Control', 'public, max-age=86400, immutable');
+          res.setHeader('Access-Control-Allow-Origin', '*');
+          res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+          res.end(Buffer.from(arrayBuffer));
+        } catch (err: any) {
+          console.error('[Closet AI Proxy] Error fetching image:', err);
+          res.statusCode = 500;
+          res.end('Proxy Fetch Error');
+        }
       });
     }
   };
