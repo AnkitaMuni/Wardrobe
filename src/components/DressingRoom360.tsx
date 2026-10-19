@@ -248,44 +248,101 @@ export const DressingRoom360: React.FC<DressingRoom360Props> = ({
     neck.position.y = 1.82 * heightFactor;
     group.add(neck);
 
+    // Texture Loader for real fabric mapping
+    const textureLoader = new THREE.TextureLoader();
+
+    // Determine Dress properties
+    let dressTexture: THREE.Texture | undefined = undefined;
+    if (activeDress?.imageUrl) {
+      try {
+        dressTexture = textureLoader.load(activeDress.imageUrl);
+        dressTexture.wrapS = THREE.RepeatWrapping;
+        dressTexture.wrapT = THREE.RepeatWrapping;
+      } catch (err) {
+        console.warn('Could not load dress texture', err);
+      }
+    }
+
+    let dressColorHex = activeDress?.colorHex;
+    // Smart fallback if dress name contains explicit color
+    if (activeDress) {
+      const lowerName = (activeDress.name + ' ' + activeDress.subcategory).toLowerCase();
+      if (lowerName.includes('pink') && (!dressColorHex || dressColorHex === '#C5A059' || dressColorHex === '#ffffff' || dressColorHex === '#F8F6F0')) {
+        dressColorHex = '#E879F9';
+      } else if (lowerName.includes('black') && (!dressColorHex || dressColorHex === '#C5A059')) {
+        dressColorHex = '#1E1E24';
+      } else if (lowerName.includes('red') && (!dressColorHex || dressColorHex === '#C5A059')) {
+        dressColorHex = '#E11D48';
+      } else if (lowerName.includes('blue') && (!dressColorHex || dressColorHex === '#C5A059')) {
+        dressColorHex = '#2563EB';
+      } else if (!dressColorHex) {
+        dressColorHex = '#E88B9E';
+      }
+    }
+
+    const dressMat = new THREE.MeshStandardMaterial({
+      color: dressColorHex ? new THREE.Color(dressColorHex) : new THREE.Color(0xE879F9),
+      map: dressTexture,
+      roughness: activeDress?.material.includes('Silk') ? 0.25 : 0.55,
+      metalness: 0.08,
+      side: THREE.DoubleSide,
+    });
+
+    // Determine Top properties
+    let topTexture: THREE.Texture | undefined = undefined;
+    if (activeTop?.imageUrl) {
+      try {
+        topTexture = textureLoader.load(activeTop.imageUrl);
+        topTexture.wrapS = THREE.RepeatWrapping;
+        topTexture.wrapT = THREE.RepeatWrapping;
+      } catch (err) {
+        console.warn('Could not load top texture', err);
+      }
+    }
+
+    let topColor = activeTop?.colorHex;
+    const topMat = activeDress
+      ? dressMat
+      : topColor
+      ? new THREE.MeshStandardMaterial({
+          color: new THREE.Color(topColor),
+          map: topTexture,
+          roughness: activeTop?.material.includes('Silk') ? 0.25 : 0.7,
+          metalness: 0.05,
+        })
+      : new THREE.MeshStandardMaterial({
+          color: new THREE.Color(0x22222A),
+          roughness: 0.8,
+        });
+
     // Torso / Chest
     const chestGeo = new THREE.CylinderGeometry(0.18 * widthScale, 0.14 * widthScale, 0.35, 32);
     chestGeo.scale(1, 1, 0.75);
 
-    // Top Garment Material or Skin
-    let topColor = activeTop?.colorHex || (activeDress ? activeDress.colorHex : null);
-    const topMat = topColor
-      ? new THREE.MeshStandardMaterial({
-          color: new THREE.Color(topColor),
-          roughness: activeTop?.material.includes('Silk') ? 0.25 : 0.8,
-          metalness: activeTop?.material.includes('Silk') ? 0.2 : 0.05,
-        })
-      : skinMat;
-
-    const chest = new THREE.Mesh(chestGeo, topMat);
+    const chest = new THREE.Mesh(chestGeo, activeDress ? dressMat : topMat);
     chest.position.y = 1.6 * heightFactor;
     chest.castShadow = true;
     group.add(chest);
 
     // Shoulders & Arms
     const shoulderGeo = new THREE.SphereGeometry(0.07, 16, 16);
-    const leftShoulder = new THREE.Mesh(shoulderGeo, topMat);
+    const leftShoulder = new THREE.Mesh(shoulderGeo, activeDress ? dressMat : topMat);
     leftShoulder.position.set(0.24 * widthScale, 1.72 * heightFactor, 0);
-    const rightShoulder = new THREE.Mesh(shoulderGeo, topMat);
+    const rightShoulder = new THREE.Mesh(shoulderGeo, activeDress ? dressMat : topMat);
     rightShoulder.position.set(-0.24 * widthScale, 1.72 * heightFactor, 0);
     group.add(leftShoulder, rightShoulder);
 
-    // Left Arm (Sleeve + Forearm)
+    // Upper Arms
     const upperArmGeo = new THREE.CylinderGeometry(0.04, 0.038, 0.32, 16);
-    const leftArm = new THREE.Mesh(upperArmGeo, topMat);
+    const leftArm = new THREE.Mesh(upperArmGeo, activeDress ? dressMat : topMat);
     leftArm.position.set(0.27 * widthScale, 1.5 * heightFactor, 0);
     leftArm.rotation.z = -0.12;
-    const rightArm = new THREE.Mesh(upperArmGeo, topMat);
+    const rightArm = new THREE.Mesh(upperArmGeo, activeDress ? dressMat : topMat);
     rightArm.position.set(-0.27 * widthScale, 1.5 * heightFactor, 0);
     rightArm.rotation.z = 0.12;
     group.add(leftArm, rightArm);
 
-    // Lower Arms (Forearm with Skin or Long Sleeve)
+    // Lower Arms (Forearm with Skin)
     const forearmGeo = new THREE.CylinderGeometry(0.035, 0.03, 0.3, 16);
     const leftForearm = new THREE.Mesh(forearmGeo, skinMat);
     leftForearm.position.set(0.32 * widthScale, 1.22 * heightFactor, 0.02);
@@ -297,47 +354,70 @@ export const DressingRoom360: React.FC<DressingRoom360Props> = ({
     const waistGeo = new THREE.CylinderGeometry(0.14 * widthScale, 0.19 * hipsScale, 0.28, 32);
     waistGeo.scale(1, 1, 0.8);
 
-    // Bottom Garment Material or Skin
-    let bottomColor = activeBottom?.colorHex || (activeDress ? activeDress.colorHex : null);
-    const bottomMat = bottomColor
+    // Bottom Garment Material
+    let bottomColor = activeBottom?.colorHex;
+    const bottomMat = activeDress
+      ? dressMat
+      : bottomColor
       ? new THREE.MeshStandardMaterial({
           color: new THREE.Color(bottomColor),
-          roughness: activeBottom?.material.includes('Denim') ? 0.9 : 0.6,
+          roughness: 0.7,
           metalness: 0.05,
         })
-      : skinMat;
+      : new THREE.MeshStandardMaterial({
+          color: new THREE.Color(0x1B1B22),
+          roughness: 0.8,
+        });
 
-    const waist = new THREE.Mesh(waistGeo, activeDress ? topMat : bottomMat);
+    const waist = new THREE.Mesh(waistGeo, activeDress ? dressMat : bottomMat);
     waist.position.y = 1.32 * heightFactor;
     waist.castShadow = true;
     group.add(waist);
 
-    // If Dress is worn, add a flowing dress skirt silhouette!
+    // If Dress is worn: Check if Bodycon vs Flared A-Line
     if (activeDress) {
-      const dressGeo = new THREE.ConeGeometry(0.48 * hipsScale, 0.85 * heightFactor, 32, 1, true);
-      const dressMat = new THREE.MeshStandardMaterial({
-        color: new THREE.Color(activeDress.colorHex),
-        roughness: 0.35,
-        side: THREE.DoubleSide,
-      });
-      const dressMesh = new THREE.Mesh(dressGeo, dressMat);
-      dressMesh.position.y = 0.95 * heightFactor;
-      group.add(dressMesh);
+      const lowerName = (activeDress.name + ' ' + activeDress.subcategory).toLowerCase();
+      const isBodycon = lowerName.includes('bodycon') || lowerName.includes('fitted') || lowerName.includes('tight') || lowerName.includes('slip') || lowerName.includes('sheath');
+
+      if (isBodycon) {
+        // Fitted bodycon dress: curves around hips & hugs thighs down to knees!
+        const bodyconGeo = new THREE.CylinderGeometry(
+          0.18 * hipsScale,
+          0.16 * widthScale,
+          0.85 * heightFactor,
+          32,
+          1,
+          true
+        );
+        bodyconGeo.scale(1.05, 1, 0.88);
+        const bodyconMesh = new THREE.Mesh(bodyconGeo, dressMat);
+        bodyconMesh.position.y = 1.05 * heightFactor;
+        bodyconMesh.castShadow = true;
+        group.add(bodyconMesh);
+      } else {
+        // Flared A-line silhouette
+        const dressGeo = new THREE.ConeGeometry(0.44 * hipsScale, 0.85 * heightFactor, 32, 1, true);
+        const dressMesh = new THREE.Mesh(dressGeo, dressMat);
+        dressMesh.position.y = 0.95 * heightFactor;
+        dressMesh.castShadow = true;
+        group.add(dressMesh);
+      }
     }
 
-    // Legs / Pants
+    // Legs / Pants (visible under dress hem or as pants)
     const legGeo = new THREE.CylinderGeometry(
-      0.09 * hipsScale,
-      0.065,
+      0.08 * hipsScale,
+      0.06,
       0.85 * heightFactor,
       24
     );
 
-    const leftLeg = new THREE.Mesh(legGeo, bottomMat);
+    const legMat = activeDress ? skinMat : bottomMat;
+    const leftLeg = new THREE.Mesh(legGeo, legMat);
     leftLeg.position.set(0.11 * widthScale, 0.78 * heightFactor, 0);
     leftLeg.castShadow = true;
 
-    const rightLeg = new THREE.Mesh(legGeo, bottomMat);
+    const rightLeg = new THREE.Mesh(legGeo, legMat);
     rightLeg.position.set(-0.11 * widthScale, 0.78 * heightFactor, 0);
     rightLeg.castShadow = true;
     group.add(leftLeg, rightLeg);

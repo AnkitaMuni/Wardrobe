@@ -127,5 +127,61 @@ export const SAMPLE_GOOGLE_PHOTOS: GooglePhotoItem[] = [
         flatLayUrl: 'https://images.unsplash.com/photo-1583496661160-fb5886a0aaaa?auto=format&fit=crop&w=600&q=80'
       }
     ]
+  },
+  {
+    id: 'gphoto-4-group',
+    imageUrl: 'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?auto=format&fit=crop&w=1200&q=80',
+    caption: 'Group Photo with Friends at Birthday Gala',
+    date: 'December 28, 2025',
+    location: 'Rooftop Lounge, Mumbai',
+    faceDetected: true,
+    faceConfidence: 0.994,
+    faceBbox: { x: 40, y: 18, width: 11, height: 16 },
+    isGroupPhoto: true,
+    crowdFaces: [
+      {
+        id: 'face-friend-1',
+        name: 'Friend (No Match 16%)',
+        isUser: false,
+        confidence: 0.16,
+        bbox: { x: 18, y: 22, width: 11, height: 16 }
+      },
+      {
+        id: 'face-ankita',
+        name: 'Ankita Muni (Verified Target Match 99.4%)',
+        isUser: true,
+        confidence: 0.994,
+        bbox: { x: 40, y: 18, width: 11, height: 16 }
+      },
+      {
+        id: 'face-friend-2',
+        name: 'Friend (No Match 21%)',
+        isUser: false,
+        confidence: 0.21,
+        bbox: { x: 62, y: 24, width: 11, height: 16 }
+      },
+      {
+        id: 'face-friend-3',
+        name: 'Friend (No Match 14%)',
+        isUser: false,
+        confidence: 0.14,
+        bbox: { x: 80, y: 20, width: 10, height: 15 }
+      }
+    ],
+    detectedGarments: [
+      {
+        id: 'det-dress-group',
+        name: 'Blush Rose Bodycon Gala Dress',
+        category: 'dress',
+        subcategory: 'Bodycon Dress',
+        color: 'Blush Rose Pink',
+        colorHex: '#FF758F',
+        material: 'Structured Crepe Spandex',
+        occasions: ['cocktail', 'date_night', 'wedding'],
+        confidence: 0.97,
+        bbox: { x: 37, y: 34, width: 18, height: 48 },
+        flatLayUrl: 'https://images.unsplash.com/photo-1566174053879-31528523f8ae?auto=format&fit=crop&w=600&q=80'
+      }
+    ]
   }
 ];

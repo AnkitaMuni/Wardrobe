@@ -75,6 +75,14 @@ export interface ExtractedGarmentCandidate {
   flatLayUrl: string;
 }
 
+export interface CrowdFace {
+  id: string;
+  name: string;
+  isUser: boolean;
+  confidence: number;
+  bbox: { x: number; y: number; width: number; height: number };
+}
+
 export interface GooglePhotoItem {
   id: string;
   imageUrl: string;
@@ -85,4 +93,7 @@ export interface GooglePhotoItem {
   faceConfidence: number;
   faceBbox: { x: number; y: number; width: number; height: number }; // percentage coords
   detectedGarments: ExtractedGarmentCandidate[];
+  crowdFaces?: CrowdFace[];
+  isGroupPhoto?: boolean;
 }
+

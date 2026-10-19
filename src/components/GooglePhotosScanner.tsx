@@ -164,23 +164,53 @@ export const GooglePhotosScanner: React.FC<GooglePhotosScannerProps> = ({
               className="w-full h-full object-cover"
             />
 
-            {/* Face Detection Bounding Box */}
-            <div
-              className={`absolute border-2 border-emerald-400 rounded-lg pointer-events-none transition-all duration-500 ${
-                scanStep === 'scanning_face' ? 'animate-pulse scale-105 shadow-lg shadow-emerald-500/50' : ''
-              }`}
-              style={{
-                left: `${selectedPhoto.faceBbox.x}%`,
-                top: `${selectedPhoto.faceBbox.y}%`,
-                width: `${selectedPhoto.faceBbox.width}%`,
-                height: `${selectedPhoto.faceBbox.height}%`,
-              }}
-            >
-              <div className="absolute -top-6 left-0 bg-emerald-500 text-black font-bold text-[9px] uppercase px-1.5 py-0.5 rounded shadow flex items-center gap-1">
-                <UserCheck className="w-2.5 h-2.5" />
-                Verified Face ({(selectedPhoto.faceConfidence * 100).toFixed(0)}%)
+            {/* Crowd Faces or Single Face Detection Bounding Boxes */}
+            {selectedPhoto.crowdFaces && selectedPhoto.crowdFaces.length > 0 ? (
+              selectedPhoto.crowdFaces.map((face) => (
+                <div
+                  key={face.id}
+                  className={`absolute border-2 rounded-lg pointer-events-none transition-all duration-500 ${
+                    face.isUser
+                      ? 'border-emerald-400 bg-emerald-500/10 shadow-lg shadow-emerald-500/40 z-20'
+                      : 'border-stone-500/60 bg-black/40 opacity-70 z-10'
+                  } ${scanStep === 'scanning_face' ? 'animate-pulse scale-105' : ''}`}
+                  style={{
+                    left: `${face.bbox.x}%`,
+                    top: `${face.bbox.y}%`,
+                    width: `${face.bbox.width}%`,
+                    height: `${face.bbox.height}%`,
+                  }}
+                >
+                  <div
+                    className={`absolute -top-6 left-0 font-bold text-[8px] uppercase px-1.5 py-0.5 rounded shadow whitespace-nowrap flex items-center gap-1 ${
+                      face.isUser
+                        ? 'bg-emerald-500 text-black'
+                        : 'bg-stone-800 text-stone-300 border border-white/20'
+                    }`}
+                  >
+                    {face.isUser ? <UserCheck className="w-2.5 h-2.5" /> : null}
+                    {face.name}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div
+                className={`absolute border-2 border-emerald-400 rounded-lg pointer-events-none transition-all duration-500 ${
+                  scanStep === 'scanning_face' ? 'animate-pulse scale-105 shadow-lg shadow-emerald-500/50' : ''
+                }`}
+                style={{
+                  left: `${selectedPhoto.faceBbox.x}%`,
+                  top: `${selectedPhoto.faceBbox.y}%`,
+                  width: `${selectedPhoto.faceBbox.width}%`,
+                  height: `${selectedPhoto.faceBbox.height}%`,
+                }}
+              >
+                <div className="absolute -top-6 left-0 bg-emerald-500 text-black font-bold text-[9px] uppercase px-1.5 py-0.5 rounded shadow flex items-center gap-1">
+                  <UserCheck className="w-2.5 h-2.5" />
+                  Verified Face ({(selectedPhoto.faceConfidence * 100).toFixed(0)}%)
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Segmented Garments Bounding Boxes */}
             {scanStep !== 'scanning_face' &&
