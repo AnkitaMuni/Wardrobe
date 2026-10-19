@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { Garment, GarmentCategory, OccasionType } from '../types';
 import { processDroppedImage, guessCategoryAndNameFromFilename, normalizeImageUrl } from '../utils/imageUtils';
 import { filterAndDeduplicateGarments } from '../utils/photoIntelligence';
@@ -38,19 +38,6 @@ interface WardrobeViewProps {
   onLoadDemoWardrobe: () => void;
 }
 
-interface PendingDroppedItem {
-  id: string;
-  file: File;
-  dataUrl: string;
-  name: string;
-  category: GarmentCategory;
-  subcategory: string;
-  color: string;
-  colorHex: string;
-  material: string;
-  occasions: (OccasionType | string)[];
-}
-
 export const WardrobeView: React.FC<WardrobeViewProps> = ({
   wardrobe,
   onSelectForTryOn,
@@ -66,6 +53,9 @@ export const WardrobeView: React.FC<WardrobeViewProps> = ({
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isDragOver, setIsDragOver] = useState<boolean>(false);
   const [isProcessingFiles, setIsProcessingFiles] = useState<boolean>(false);
+  const [processingStatusText, setProcessingStatusText] = useState<string>('');
+  const [recentlyAddedCount, setRecentlyAddedCount] = useState<number>(0);
+  const [dropErrorNotice, setDropErrorNotice] = useState<string | null>(null);
   const [showClearConfirm, setShowClearConfirm] = useState<boolean>(false);
 
   // AI Cleaning & Deduplication State
@@ -73,11 +63,11 @@ export const WardrobeView: React.FC<WardrobeViewProps> = ({
   const [cleanProgressText, setCleanProgressText] = useState<string>('');
   const [cleanSummary, setCleanSummary] = useState<{ groupRemoved: number; duplicatesMerged: number } | null>(null);
 
-  // Queue of dropped items being tagged one-by-one
-  const [pendingQueue, setPendingQueue] = useState<PendingDroppedItem[]>([]);
-  const [currentPendingIndex, setCurrentPendingIndex] = useState<number>(0);
+  // Garment being actively edited/tagged in modal
+  const [editingGarment, setEditingGarment] = useState<Garment | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const dragCounterRef = useRef<number>(0);
 
   const handleAutoCleanWardrobe = async () => {
     if (wardrobe.length === 0 || isCleaningWardrobe) return;
@@ -142,153 +132,136 @@ export const WardrobeView: React.FC<WardrobeViewProps> = ({
   ];
 
   // Process incoming files (via drag & drop or file dialog)
-  const handleFiles = async (files: FileList | File[]) => {
-    const imageFiles = Array.from(files).filter(file => file.type.startsWith('image/'));
-    if (imageFiles.length === 0) return;
+  const handleFiles = useCallback(async (files: FileList | File[]) => {
+    const fileArray = Array.from(files);
+    // Robust image detection: check MIME or filename extension (handles Windows MIME quirks)
+    const imageFiles = fileArray.filter(file => {
+      if (file.type && file.type.startsWith('image/')) return true;
+      return /\.(jpe?g|png|webp|avif|gif|bmp|heic|jfif|svg)$/i.test(file.name);
+    });
+
+    if (imageFiles.length === 0) {
+      setDropErrorNotice('Please drop valid clothing images (JPG, PNG, WEBP, AVIF, HEIC)');
+      setTimeout(() => setDropErrorNotice(null), 4000);
+      return;
+    }
 
     setIsProcessingFiles(true);
-    const newQueue: PendingDroppedItem[] = [];
+    setProcessingStatusText(`Adding ${imageFiles.length} item${imageFiles.length > 1 ? 's' : ''} to your closet...`);
 
-    for (const file of imageFiles) {
+    const newGarments: Garment[] = [];
+
+    for (let i = 0; i < imageFiles.length; i++) {
+      const file = imageFiles[i];
+      setProcessingStatusText(`Processing ${i + 1}/${imageFiles.length}: "${file.name}"...`);
       try {
         const { dataUrl, dominantColorHex, dominantColorName } = await processDroppedImage(file);
         const { category, subcategory, suggestedName } = guessCategoryAndNameFromFilename(file.name);
 
-        newQueue.push({
-          id: `drop-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-          file,
-          dataUrl,
-          name: suggestedName,
+        const newGarment: Garment = {
+          id: `garment-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+          name: suggestedName || 'Custom Piece',
           category,
-          subcategory,
-          color: dominantColorName,
-          colorHex: dominantColorHex,
-          material: 'Cotton Blend',
+          subcategory: subcategory || 'Garment',
+          color: dominantColorName || 'Neutral',
+          colorHex: dominantColorHex || '#B59D82',
+          pattern: 'Solid / Texture',
+          material: 'Quality Fabric',
+          seasons: ['all-season'],
           occasions: ['casual_brunch'],
-        });
+          imageUrl: dataUrl,
+          source: 'manual',
+          tags: ['drag-drop', category, (subcategory || 'piece').toLowerCase()],
+          timesWorn: 0,
+          isFavorite: false,
+          createdAt: new Date().toISOString().split('T')[0],
+        };
+
+        newGarments.push(newGarment);
       } catch (err) {
         console.error('Failed to process image:', file.name, err);
       }
     }
 
     setIsProcessingFiles(false);
-    if (newQueue.length > 0) {
-      setPendingQueue(newQueue);
-      setCurrentPendingIndex(0);
+    setProcessingStatusText('');
+
+    if (newGarments.length > 0) {
+      if (onUpdateWardrobe) {
+        onUpdateWardrobe([...newGarments, ...wardrobe]);
+      } else {
+        newGarments.forEach(g => onAddNewGarment(g));
+      }
+
+      setRecentlyAddedCount(newGarments.length);
+      setTimeout(() => setRecentlyAddedCount(0), 6000);
+
+      confetti({
+        particleCount: Math.min(120, 40 + newGarments.length * 15),
+        spread: 75,
+        origin: { y: 0.65 },
+        colors: ['#D4AF37', '#FF758F', '#38BDF8', '#FFFFFF'],
+      });
     }
-  };
+  }, [wardrobe, onUpdateWardrobe, onAddNewGarment]);
 
-  // Drag and drop event handlers
-  const onDragEnter = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragOver(true);
-  }, []);
+  // Keep a stable ref so window drag event listeners don't need reattachment
+  const handleFilesRef = useRef(handleFiles);
+  handleFilesRef.current = handleFiles;
 
-  const onDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragOver(true);
-  }, []);
-
-  const onDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragOver(false);
-  }, []);
-
-  const onDrop = useCallback(async (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragOver(false);
-
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      await handleFiles(e.dataTransfer.files);
-    }
-  }, []);
-
-  // Save current item from pending queue
-  const saveCurrentPendingItem = () => {
-    const item = pendingQueue[currentPendingIndex];
-    if (!item) return;
-
-    const newGarment: Garment = {
-      id: `garment-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-      name: item.name || 'Custom Garment',
-      category: item.category,
-      subcategory: item.subcategory || 'Garment',
-      color: item.color || 'Custom Color',
-      colorHex: item.colorHex || '#B59D82',
-      pattern: 'Solid / Texture',
-      material: item.material || 'Quality Blend',
-      seasons: ['all-season'],
-      occasions: item.occasions.length > 0 ? item.occasions : ['casual_brunch'],
-      imageUrl: item.dataUrl,
-      source: 'manual',
-      tags: ['my-upload', item.category, item.subcategory.toLowerCase()],
-      timesWorn: 0,
-      isFavorite: false,
-      createdAt: new Date().toISOString().split('T')[0],
+  // Window-level drag-and-drop listener to prevent browser file navigation and capture drops anywhere
+  useEffect(() => {
+    const handleWindowDragEnter = (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dragCounterRef.current++;
+      if (e.dataTransfer && e.dataTransfer.types && e.dataTransfer.types.length > 0) {
+        setIsDragOver(true);
+      }
     };
 
-    onAddNewGarment(newGarment);
+    const handleWindowDragOver = (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.dataTransfer) {
+        e.dataTransfer.dropEffect = 'copy';
+      }
+      setIsDragOver(true);
+    };
 
-    confetti({
-      particleCount: 30,
-      spread: 50,
-      origin: { y: 0.8 },
-      colors: ['#D4AF37', '#FFFFFF', item.colorHex]
-    });
+    const handleWindowDragLeave = (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dragCounterRef.current--;
+      if (dragCounterRef.current <= 0) {
+        dragCounterRef.current = 0;
+        setIsDragOver(false);
+      }
+    };
 
-    // Move to next in queue, or finish
-    if (currentPendingIndex < pendingQueue.length - 1) {
-      setCurrentPendingIndex(prev => prev + 1);
-    } else {
-      setPendingQueue([]);
-      setCurrentPendingIndex(0);
-    }
-  };
+    const handleWindowDrop = async (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dragCounterRef.current = 0;
+      setIsDragOver(false);
 
-  // Quick add all remaining in queue with auto-defaults
-  const saveAllPendingItems = () => {
-    pendingQueue.slice(currentPendingIndex).forEach((item) => {
-      const g: Garment = {
-        id: `garment-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-        name: item.name || 'Garment',
-        category: item.category,
-        subcategory: item.subcategory,
-        color: item.color,
-        colorHex: item.colorHex,
-        pattern: 'Solid',
-        material: item.material,
-        seasons: ['all-season'],
-        occasions: item.occasions,
-        imageUrl: item.dataUrl,
-        source: 'manual',
-        tags: ['drag-drop', item.category],
-        timesWorn: 0,
-        isFavorite: false,
-        createdAt: new Date().toISOString().split('T')[0],
-      };
-      onAddNewGarment(g);
-    });
+      if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        await handleFilesRef.current(e.dataTransfer.files);
+      }
+    };
 
-    confetti({
-      particleCount: 60,
-      spread: 70,
-      origin: { y: 0.8 },
-      colors: ['#D4AF37', '#38BDF8', '#FFFFFF']
-    });
+    window.addEventListener('dragenter', handleWindowDragEnter);
+    window.addEventListener('dragover', handleWindowDragOver);
+    window.addEventListener('dragleave', handleWindowDragLeave);
+    window.addEventListener('drop', handleWindowDrop);
 
-    setPendingQueue([]);
-    setCurrentPendingIndex(0);
-  };
-
-  // Cancel remaining queue
-  const discardPendingQueue = () => {
-    setPendingQueue([]);
-    setCurrentPendingIndex(0);
-  };
+    return () => {
+      window.removeEventListener('dragenter', handleWindowDragEnter);
+      window.removeEventListener('dragover', handleWindowDragOver);
+      window.removeEventListener('dragleave', handleWindowDragLeave);
+      window.removeEventListener('drop', handleWindowDrop);
+    };
+  }, []);
 
   // Filter items in wardrobe
   const filteredItems = wardrobe.filter((item) => {
@@ -304,16 +277,8 @@ export const WardrobeView: React.FC<WardrobeViewProps> = ({
     return matchesCategory && matchesQuery;
   });
 
-  const currentItem = pendingQueue[currentPendingIndex];
-
   return (
-    <div 
-      onDragEnter={onDragEnter}
-      onDragOver={onDragOver}
-      onDragLeave={onDragLeave}
-      onDrop={onDrop}
-      className="space-y-6 animate-fade-in relative min-h-[600px]"
-    >
+    <div className="space-y-6 animate-fade-in relative min-h-[600px]">
       {/* Hidden file input */}
       <input
         ref={fileInputRef}
@@ -324,14 +289,80 @@ export const WardrobeView: React.FC<WardrobeViewProps> = ({
         className="hidden"
       />
 
-      {/* Screen-wide Drag Overlay when dragging files over window */}
+      {/* Screen-wide Drag Overlay when dragging files anywhere over window */}
       {isDragOver && (
-        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md border-4 border-dashed border-amber-400 flex flex-col items-center justify-center pointer-events-none animate-fade-in">
-          <div className="w-24 h-24 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center mb-4 animate-bounce">
+        <div 
+          onDragOver={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+          }}
+          onDrop={async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dragCounterRef.current = 0;
+            setIsDragOver(false);
+            if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+              await handleFilesRef.current(e.dataTransfer.files);
+            }
+          }}
+          className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md border-4 border-dashed border-amber-400 flex flex-col items-center justify-center animate-fade-in p-6 cursor-copy"
+        >
+          <div className="w-24 h-24 rounded-3xl bg-amber-500/20 text-amber-400 border border-amber-500/40 flex items-center justify-center mb-4 animate-bounce shadow-2xl">
             <Upload className="w-12 h-12 stroke-[2.5]" />
           </div>
-          <h2 className="font-serif text-3xl font-bold text-white mb-2">Drop Your Clothes Here</h2>
-          <p className="text-stone-300 text-sm">Release to extract color, preview, and add to your digital wardrobe</p>
+          <h2 className="font-serif text-3xl sm:text-4xl font-bold text-white mb-2">
+            Drop Your Clothes Anywhere
+          </h2>
+          <p className="text-stone-300 text-sm sm:text-base max-w-md text-center">
+            Release to instantly add to your digital wardrobe. Colors & categories are extracted automatically!
+          </p>
+          <div className="mt-4 px-3.5 py-1.5 rounded-full bg-amber-500/20 border border-amber-500/30 text-amber-300 text-xs font-semibold flex items-center gap-1.5">
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>Accepts JPG, PNG, WEBP, AVIF, HEIC, etc.</span>
+          </div>
+        </div>
+      )}
+
+      {/* Upload & Drag Processing Status Banner */}
+      {isProcessingFiles && (
+        <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex items-center gap-3 animate-pulse shadow-lg">
+          <div className="w-4 h-4 rounded-full border-2 border-amber-400 border-t-transparent animate-spin flex-shrink-0" />
+          <span className="font-medium font-mono">{processingStatusText || 'Adding dropped clothes to your closet...'}</span>
+        </div>
+      )}
+
+      {/* Instant Ingestion Success Banner */}
+      {recentlyAddedCount > 0 && (
+        <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-center justify-between gap-3 animate-fade-in shadow-lg">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+            <span>
+              <strong>Success!</strong> Added <strong>{recentlyAddedCount}</strong> clothing item{recentlyAddedCount > 1 ? 's' : ''} directly to your wardrobe. Dominant colors & categories were extracted automatically!
+            </span>
+          </div>
+          <button
+            onClick={() => setRecentlyAddedCount(0)}
+            className="text-stone-400 hover:text-white p-1"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Error Notice */}
+      {dropErrorNotice && (
+        <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs flex items-center justify-between gap-3 animate-fade-in shadow-lg">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
+            <span>{dropErrorNotice}</span>
+          </div>
+          <button
+            onClick={() => setDropErrorNotice(null)}
+            className="text-stone-400 hover:text-white p-1"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
       )}
 
@@ -439,6 +470,20 @@ export const WardrobeView: React.FC<WardrobeViewProps> = ({
       {/* Primary Drag & Drop Zone */}
       <div
         onClick={() => fileInputRef.current?.click()}
+        onDragOver={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+        }}
+        onDrop={async (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          dragCounterRef.current = 0;
+          setIsDragOver(false);
+          if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            await handleFilesRef.current(e.dataTransfer.files);
+          }
+        }}
         className={`group relative rounded-3xl border-2 border-dashed transition-all cursor-pointer p-8 text-center flex flex-col items-center justify-center overflow-hidden ${
           wardrobe.length === 0
             ? 'bg-gradient-to-b from-[#181824] via-[#14141E] to-[#101016] border-amber-500/50 py-16 shadow-2xl hover:border-amber-400'
@@ -604,11 +649,19 @@ export const WardrobeView: React.FC<WardrobeViewProps> = ({
 
                   <button
                     onClick={() => onSelectForPairing(item.id)}
-                    className="py-1.5 px-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-stone-200 border border-white/10 text-[10px] font-semibold flex items-center gap-1 transition-colors"
+                    className="py-1.5 px-2 rounded-xl bg-white/5 hover:bg-white/10 text-stone-200 border border-white/10 text-[10px] font-semibold flex items-center gap-1 transition-colors"
                     title="Pair this piece"
                   >
                     <Sparkles className="w-3 h-3 text-amber-400" />
                     <span>Pair</span>
+                  </button>
+
+                  <button
+                    onClick={() => setEditingGarment(item)}
+                    className="p-1.5 rounded-xl text-stone-400 hover:text-amber-300 hover:bg-white/5 transition-colors"
+                    title="Edit name, color & category tags"
+                  >
+                    <Tag className="w-3 h-3" />
                   </button>
 
                   <button
@@ -625,28 +678,28 @@ export const WardrobeView: React.FC<WardrobeViewProps> = ({
         </div>
       )}
 
-      {/* REVIEW & TAG DROPPED ITEM MODAL (One-by-one or batch) */}
-      {currentItem && (
+      {/* EDIT / TAG GARMENT MODAL */}
+      {editingGarment && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
           <div className="w-full max-w-xl bg-[#161622] border border-amber-500/30 rounded-3xl p-6 shadow-2xl animate-fade-in flex flex-col max-h-[90vh] overflow-y-auto">
-            {/* Top Bar of Review Modal */}
+            {/* Top Bar of Edit Modal */}
             <div className="flex items-center justify-between pb-4 border-b border-white/10 mb-5">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center">
-                  <Sparkles className="w-4 h-4" />
+                  <Tag className="w-4 h-4" />
                 </div>
                 <div>
                   <h3 className="font-serif text-base font-bold text-white">
-                    Add Dropped Piece to Closet
+                    Edit Garment Details & Tags
                   </h3>
                   <p className="text-[11px] text-stone-400">
-                    Item {currentPendingIndex + 1} of {pendingQueue.length}
+                    Adjust garment name, category, color, or occasions
                   </p>
                 </div>
               </div>
 
               <button
-                onClick={discardPendingQueue}
+                onClick={() => setEditingGarment(null)}
                 className="text-stone-400 hover:text-white p-1 rounded-lg"
               >
                 <X className="w-5 h-5" />
@@ -659,28 +712,29 @@ export const WardrobeView: React.FC<WardrobeViewProps> = ({
               <div className="sm:col-span-5 flex flex-col items-center">
                 <div className="relative aspect-[3/4] w-full max-w-[220px] rounded-2xl overflow-hidden border border-white/15 bg-black shadow-lg">
                   <img
-                    src={currentItem.dataUrl}
-                    alt={currentItem.name}
+                    src={normalizeImageUrl(editingGarment.imageUrl)}
+                    alt={editingGarment.name}
                     className="w-full h-full object-cover"
                   />
                   <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded-md text-[9px] font-bold uppercase bg-black/80 text-amber-300">
-                    Auto-Detected
+                    {editingGarment.category}
                   </div>
                 </div>
 
                 <div className="mt-3 flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-xl border border-white/10">
                   <span
                     className="w-4 h-4 rounded-full border border-white/30"
-                    style={{ backgroundColor: currentItem.colorHex }}
+                    style={{ backgroundColor: editingGarment.colorHex }}
                   />
-                  <span className="text-xs text-stone-300 font-medium">{currentItem.color}</span>
+                  <span className="text-xs text-stone-300 font-medium">{editingGarment.color}</span>
                   <input
                     type="color"
-                    value={currentItem.colorHex}
+                    value={editingGarment.colorHex}
                     onChange={(e) => {
-                      const updated = [...pendingQueue];
-                      updated[currentPendingIndex].colorHex = e.target.value;
-                      setPendingQueue(updated);
+                      setEditingGarment({
+                        ...editingGarment,
+                        colorHex: e.target.value,
+                      });
                     }}
                     className="w-5 h-5 bg-transparent cursor-pointer border-0"
                     title="Change color hex"
@@ -697,12 +751,8 @@ export const WardrobeView: React.FC<WardrobeViewProps> = ({
                   </label>
                   <input
                     type="text"
-                    value={currentItem.name}
-                    onChange={(e) => {
-                      const updated = [...pendingQueue];
-                      updated[currentPendingIndex].name = e.target.value;
-                      setPendingQueue(updated);
-                    }}
+                    value={editingGarment.name}
+                    onChange={(e) => setEditingGarment({ ...editingGarment, name: e.target.value })}
                     className="w-full px-3 py-2 bg-black/40 border border-white/15 focus:border-amber-400 rounded-xl text-xs text-white focus:outline-none"
                     placeholder="e.g. Crisp White Linen Shirt"
                   />
@@ -718,13 +768,9 @@ export const WardrobeView: React.FC<WardrobeViewProps> = ({
                       <button
                         key={cat}
                         type="button"
-                        onClick={() => {
-                          const updated = [...pendingQueue];
-                          updated[currentPendingIndex].category = cat;
-                          setPendingQueue(updated);
-                        }}
+                        onClick={() => setEditingGarment({ ...editingGarment, category: cat })}
                         className={`py-1.5 px-2 rounded-xl text-xs font-medium capitalize border transition-all ${
-                          currentItem.category === cat
+                          editingGarment.category === cat
                             ? 'bg-amber-500 text-black font-bold border-amber-400'
                             : 'bg-white/5 text-stone-300 border-white/10 hover:border-white/20'
                         }`}
@@ -742,12 +788,8 @@ export const WardrobeView: React.FC<WardrobeViewProps> = ({
                   </label>
                   <input
                     type="text"
-                    value={currentItem.subcategory}
-                    onChange={(e) => {
-                      const updated = [...pendingQueue];
-                      updated[currentPendingIndex].subcategory = e.target.value;
-                      setPendingQueue(updated);
-                    }}
+                    value={editingGarment.subcategory}
+                    onChange={(e) => setEditingGarment({ ...editingGarment, subcategory: e.target.value })}
                     className="w-full px-3 py-2 bg-black/40 border border-white/15 focus:border-amber-400 rounded-xl text-xs text-white focus:outline-none"
                     placeholder="e.g. Button-down Shirt, Wide-Leg Pants, Sneaker"
                   />
@@ -760,12 +802,8 @@ export const WardrobeView: React.FC<WardrobeViewProps> = ({
                   </label>
                   <input
                     type="text"
-                    value={currentItem.material}
-                    onChange={(e) => {
-                      const updated = [...pendingQueue];
-                      updated[currentPendingIndex].material = e.target.value;
-                      setPendingQueue(updated);
-                    }}
+                    value={editingGarment.material}
+                    onChange={(e) => setEditingGarment({ ...editingGarment, material: e.target.value })}
                     className="w-full px-3 py-2 bg-black/40 border border-white/15 focus:border-amber-400 rounded-xl text-xs text-white focus:outline-none"
                     placeholder="e.g. Linen, 100% Silk, Denim, Wool"
                   />
@@ -778,19 +816,16 @@ export const WardrobeView: React.FC<WardrobeViewProps> = ({
                   </label>
                   <div className="flex flex-wrap gap-1.5">
                     {occasionOptions.map((occ) => {
-                      const isSelected = currentItem.occasions.includes(occ.id);
+                      const isSelected = editingGarment.occasions.includes(occ.id);
                       return (
                         <button
                           key={occ.id}
                           type="button"
                           onClick={() => {
-                            const updated = [...pendingQueue];
-                            if (isSelected) {
-                              updated[currentPendingIndex].occasions = updated[currentPendingIndex].occasions.filter(o => o !== occ.id);
-                            } else {
-                              updated[currentPendingIndex].occasions = [...updated[currentPendingIndex].occasions, occ.id];
-                            }
-                            setPendingQueue(updated);
+                            const newOccasions = isSelected
+                              ? editingGarment.occasions.filter(o => o !== occ.id)
+                              : [...editingGarment.occasions, occ.id];
+                            setEditingGarment({ ...editingGarment, occasions: newOccasions });
                           }}
                           className={`px-2 py-1 rounded-lg text-[10px] font-semibold transition-all border ${
                             isSelected
@@ -811,34 +846,25 @@ export const WardrobeView: React.FC<WardrobeViewProps> = ({
             <div className="pt-4 border-t border-white/10 flex items-center justify-between gap-3">
               <button
                 type="button"
-                onClick={discardPendingQueue}
+                onClick={() => setEditingGarment(null)}
                 className="px-4 py-2.5 rounded-xl text-xs text-stone-400 hover:text-white"
               >
                 Cancel
               </button>
 
-              <div className="flex items-center gap-2">
-                {pendingQueue.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={saveAllPendingItems}
-                    className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-stone-200 text-xs font-semibold"
-                  >
-                    Quick Add All ({pendingQueue.length})
-                  </button>
-                )}
-
-                <button
-                  type="button"
-                  onClick={saveCurrentPendingItem}
-                  className="px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-lg"
-                >
-                  <Check className="w-4 h-4 stroke-[3]" />
-                  <span>
-                    {currentPendingIndex < pendingQueue.length - 1 ? 'Save & Next Piece' : 'Save to Wardrobe'}
-                  </span>
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (onUpdateWardrobe) {
+                    onUpdateWardrobe(wardrobe.map(g => g.id === editingGarment.id ? editingGarment : g));
+                  }
+                  setEditingGarment(null);
+                }}
+                className="px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-lg"
+              >
+                <Check className="w-4 h-4 stroke-[3]" />
+                <span>Save Changes</span>
+              </button>
             </div>
           </div>
         </div>
