@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { Garment, GarmentCategory, OccasionType } from '../types';
 import { processDroppedImage, guessCategoryAndNameFromFilename, normalizeImageUrl } from '../utils/imageUtils';
+import { filterAndDeduplicateGarments } from '../utils/photoIntelligence';
 import { 
   Plus, 
   Search, 
@@ -19,7 +20,9 @@ import {
   X,
   ArrowRight,
   RefreshCw,
-  FolderOpen
+  FolderOpen,
+  UserCheck,
+  CheckCircle2
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -30,6 +33,7 @@ interface WardrobeViewProps {
   onToggleFavorite: (garmentId: string) => void;
   onDeleteGarment: (garmentId: string) => void;
   onAddNewGarment: (garment: Garment) => void;
+  onUpdateWardrobe?: (cleaned: Garment[]) => void;
   onClearAllWardrobe: () => void;
   onLoadDemoWardrobe: () => void;
 }
@@ -54,6 +58,7 @@ export const WardrobeView: React.FC<WardrobeViewProps> = ({
   onToggleFavorite,
   onDeleteGarment,
   onAddNewGarment,
+  onUpdateWardrobe,
   onClearAllWardrobe,
   onLoadDemoWardrobe,
 }) => {
@@ -63,11 +68,57 @@ export const WardrobeView: React.FC<WardrobeViewProps> = ({
   const [isProcessingFiles, setIsProcessingFiles] = useState<boolean>(false);
   const [showClearConfirm, setShowClearConfirm] = useState<boolean>(false);
 
+  // AI Cleaning & Deduplication State
+  const [isCleaningWardrobe, setIsCleaningWardrobe] = useState<boolean>(false);
+  const [cleanProgressText, setCleanProgressText] = useState<string>('');
+  const [cleanSummary, setCleanSummary] = useState<{ groupRemoved: number; duplicatesMerged: number } | null>(null);
+
   // Queue of dropped items being tagged one-by-one
   const [pendingQueue, setPendingQueue] = useState<PendingDroppedItem[]>([]);
   const [currentPendingIndex, setCurrentPendingIndex] = useState<number>(0);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleAutoCleanWardrobe = async () => {
+    if (wardrobe.length === 0 || isCleaningWardrobe) return;
+    setIsCleaningWardrobe(true);
+    setCleanSummary(null);
+    setCleanProgressText('Preparing photos for AI face & outfit analysis...');
+
+    try {
+      const { cleanedGarments, groupPhotosRemoved, duplicateDressesMerged } = await filterAndDeduplicateGarments(
+        wardrobe,
+        {
+          filterGroupPhotos: true,
+          deduplicateRepeatingDresses: true,
+          onProgress: (curr, total) => {
+            setCleanProgressText(`Scanning face count & dresses... (${curr}/${total})`);
+          },
+        }
+      );
+
+      if (onUpdateWardrobe) {
+        onUpdateWardrobe(cleanedGarments);
+      }
+
+      setCleanSummary({
+        groupRemoved: groupPhotosRemoved,
+        duplicatesMerged: duplicateDressesMerged,
+      });
+
+      confetti({
+        particleCount: 80,
+        spread: 75,
+        origin: { y: 0.65 },
+        colors: ['#D4AF37', '#FF758F', '#38BDF8'],
+      });
+    } catch (err) {
+      console.error('Failed to auto-clean wardrobe:', err);
+    } finally {
+      setIsCleaningWardrobe(false);
+      setCleanProgressText('');
+    }
+  };
 
   const categories: { id: string; label: string; icon: string }[] = [
     { id: 'all', label: 'All Pieces', icon: '✨' },
@@ -323,6 +374,68 @@ export const WardrobeView: React.FC<WardrobeViewProps> = ({
         </div>
       </div>
 
+      {/* AI CLEAN BANNER: FILTER GROUP PICS & MERGE REPEATING DRESSES */}
+      {wardrobe.length > 0 && (
+        <div className="p-5 rounded-3xl bg-gradient-to-r from-[#171725] via-[#1E1926] to-[#14141E] border border-amber-500/30 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl animate-fade-in">
+          <div className="flex items-start sm:items-center gap-3.5">
+            <div className="w-11 h-11 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center flex-shrink-0">
+              <UserCheck className="w-6 h-6 stroke-[2]" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-bold text-white font-serif tracking-wide">
+                  Clean Wardrobe: Single Pics & Distinct Outfits
+                </h3>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                  AI Filter
+                </span>
+              </div>
+              <p className="text-xs text-stone-300 mt-1 leading-relaxed">
+                Filter out group photos with crowds/friends and merge repeating photos of the same dress into single curated pieces.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5 w-full sm:w-auto">
+            <button
+              onClick={handleAutoCleanWardrobe}
+              disabled={isCleaningWardrobe}
+              className="w-full sm:w-auto px-5 py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 disabled:opacity-50 text-black font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg transition-all whitespace-nowrap"
+            >
+              {isCleaningWardrobe ? (
+                <>
+                  <div className="w-3.5 h-3.5 rounded-full border-2 border-black/30 border-t-black animate-spin" />
+                  <span className="font-mono">{cleanProgressText || 'Cleaning...'}</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4" />
+                  <span>Keep Only My Single Pics & Remove Repeating Dresses</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Clean Success Notice */}
+      {cleanSummary && (
+        <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-center justify-between gap-3 animate-fade-in">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+            <span>
+              <strong>Clean Complete!</strong> Removed <strong>{cleanSummary.groupRemoved}</strong> group photo(s) and merged <strong>{cleanSummary.duplicatesMerged}</strong> repeating dress photo(s). Kept only your best solo shots!
+            </span>
+          </div>
+          <button
+            onClick={() => setCleanSummary(null)}
+            className="text-stone-400 hover:text-white p-1"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Primary Drag & Drop Zone */}
       <div
         onClick={() => fileInputRef.current?.click()}
@@ -434,6 +547,14 @@ export const WardrobeView: React.FC<WardrobeViewProps> = ({
                       }
                     }}
                   />
+
+                  {/* Alternate Angles Badge */}
+                  {item.alternatePhotos && item.alternatePhotos.length > 0 && (
+                    <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-500 text-black shadow-md backdrop-blur-md flex items-center gap-1">
+                      <Layers className="w-2.5 h-2.5" />
+                      <span>+{item.alternatePhotos.length} angles</span>
+                    </span>
+                  )}
 
                   {/* Favorite Toggle */}
                   <button

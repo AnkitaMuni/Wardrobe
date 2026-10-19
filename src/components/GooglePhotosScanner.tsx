@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { SAMPLE_GOOGLE_PHOTOS } from '../data/samplePhotos';
 import { GooglePhotoItem, ExtractedGarmentCandidate, Garment } from '../types';
 import { processDroppedImage, guessCategoryAndNameFromFilename, normalizeImageUrl } from '../utils/imageUtils';
+import { filterAndDeduplicateGarments } from '../utils/photoIntelligence';
 import { 
   Camera, 
   Scan, 
@@ -46,6 +47,8 @@ export const GooglePhotosScanner: React.FC<GooglePhotosScannerProps> = ({
   const [isSyncingAlbum, setIsSyncingAlbum] = useState<boolean>(false);
   const [syncStatusText, setSyncStatusText] = useState<string>('');
   const [syncSuccessMsg, setSyncSuccessMsg] = useState<string>('');
+  const [filterSoloOnly, setFilterSoloOnly] = useState<boolean>(true);
+  const [deduplicateDresses, setDeduplicateDresses] = useState<boolean>(true);
 
   const folderInputRef = useRef<HTMLInputElement>(null);
 
@@ -128,9 +131,9 @@ export const GooglePhotosScanner: React.FC<GooglePhotosScannerProps> = ({
       const data = await response.json();
 
       if (data.success && data.photos && data.photos.length > 0) {
-        setSyncStatusText(`Found ${data.photos.length} photos! Running Face Match and extracting garments...`);
+        setSyncStatusText(`Found ${data.photos.length} photos! Analyzing single pics & deduplicating repeating dresses...`);
 
-        const importedList: Garment[] = data.photos.map((url: string, index: number) => ({
+        const rawList: Garment[] = data.photos.map((url: string, index: number) => ({
           id: `gphoto-real-${Date.now()}-${index}`,
           name: `Album Outfit #${index + 1}`,
           category: index % 2 === 0 ? 'dress' : 'top',
@@ -149,11 +152,24 @@ export const GooglePhotosScanner: React.FC<GooglePhotosScannerProps> = ({
           createdAt: new Date().toISOString().split('T')[0],
         }));
 
-        onImportGarments(importedList);
-        setExtractedAlbumGarments(importedList);
+        const { cleanedGarments, groupPhotosRemoved, duplicateDressesMerged } = await filterAndDeduplicateGarments(
+          rawList,
+          {
+            filterGroupPhotos: filterSoloOnly,
+            deduplicateRepeatingDresses: deduplicateDresses,
+            onProgress: (curr, total) => {
+              setSyncStatusText(`AI scanning face count & dresses... (${curr}/${total})`);
+            }
+          }
+        );
+
+        onImportGarments(cleanedGarments);
+        setExtractedAlbumGarments(cleanedGarments);
         setIsSyncingAlbum(false);
         setSyncStatusText('');
-        setSyncSuccessMsg(`Success! Found your photos and imported ${importedList.length} real clothing items from your album into your wardrobe.`);
+        setSyncSuccessMsg(
+          `Success! Imported ${cleanedGarments.length} curated solo dresses into your wardrobe (filtered out ${groupPhotosRemoved} group photos and merged ${duplicateDressesMerged} repeating dresses).`
+        );
 
         confetti({
           particleCount: 90,
@@ -275,6 +291,31 @@ export const GooglePhotosScanner: React.FC<GooglePhotosScannerProps> = ({
               <ShieldCheck className="w-3.5 h-3.5" />
               <span>Target Face: Ankita Muni (Enrolled)</span>
             </div>
+          </div>
+
+          {/* Solo Filter & Deduplication Toggles */}
+          <div className="mb-4 p-3 rounded-xl bg-white/5 border border-white/10 flex flex-wrap items-center justify-between gap-3 text-xs">
+            <label className="flex items-center gap-2 cursor-pointer text-stone-300 hover:text-white select-none">
+              <input
+                type="checkbox"
+                checked={filterSoloOnly}
+                onChange={(e) => setFilterSoloOnly(e.target.checked)}
+                className="w-4 h-4 rounded text-amber-500 focus:ring-amber-400 bg-stone-900 border-white/20 accent-amber-500"
+              />
+              <span className="font-semibold text-white">Only Single / Solo Pics</span>
+              <span className="text-[11px] text-stone-400">(Ignore group photos with crowds/friends)</span>
+            </label>
+
+            <label className="flex items-center gap-2 cursor-pointer text-stone-300 hover:text-white select-none">
+              <input
+                type="checkbox"
+                checked={deduplicateDresses}
+                onChange={(e) => setDeduplicateDresses(e.target.checked)}
+                className="w-4 h-4 rounded text-amber-500 focus:ring-amber-400 bg-stone-900 border-white/20 accent-amber-500"
+              />
+              <span className="font-semibold text-white">Auto-Deduplicate Repeating Dresses</span>
+              <span className="text-[11px] text-stone-400">(Keep single best photo per dress)</span>
+            </label>
           </div>
 
           <form onSubmit={handleSyncAlbumLink} className="flex flex-col sm:flex-row items-center gap-2.5">

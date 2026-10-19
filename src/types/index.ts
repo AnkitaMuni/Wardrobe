@@ -32,6 +32,10 @@ export interface Garment {
   timesWorn: number;
   isFavorite: boolean;
   createdAt: string;
+  isGroupPhoto?: boolean;
+  isSolo?: boolean;
+  faceCount?: number;
+  alternatePhotos?: string[];
 }
 
 export interface OutfitPair {

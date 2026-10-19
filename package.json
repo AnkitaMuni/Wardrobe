@@ -9,8 +9,11 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "clsx": "^2.1.1",
+    "@tensorflow-models/blazeface": "^0.1.0",
+    "@tensorflow/tfjs-backend-webgl": "^4.22.0",
+    "@tensorflow/tfjs-core": "^4.22.0",
     "canvas-confetti": "^1.9.4",
+    "clsx": "^2.1.1",
     "lucide-react": "^1.16.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

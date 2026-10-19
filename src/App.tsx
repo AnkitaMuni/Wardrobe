@@ -219,6 +219,7 @@ export function App() {
             onToggleFavorite={handleToggleFavorite}
             onDeleteGarment={handleDeleteGarment}
             onAddNewGarment={handleAddNewGarment}
+            onUpdateWardrobe={setWardrobe}
             onClearAllWardrobe={handleClearAllWardrobe}
             onLoadDemoWardrobe={handleLoadDemoWardrobe}
           />
