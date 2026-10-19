@@ -13,7 +13,8 @@ import {
   Share2,
   RefreshCw,
   Camera,
-  Compass
+  Compass,
+  Shirt
 } from 'lucide-react';
 
 interface DressingRoom360Props {
@@ -819,6 +820,23 @@ export const DressingRoom360: React.FC<DressingRoom360Props> = ({
                     title="Remove accessory"
                   >
                     ×
+                  </button>
+                </div>
+              )}
+
+              {/* Empty Layers Callout */}
+              {[activeTop, activeBottom, activeDress, activeOuter, activeFootwear, activeAccessory].filter(Boolean).length === 0 && (
+                <div className="p-6 rounded-2xl bg-white/5 border border-white/10 text-center space-y-2.5">
+                  <Shirt className="w-8 h-8 text-amber-400/60 mx-auto" />
+                  <p className="text-xs font-semibold text-white">Mannequin Ready to Style</p>
+                  <p className="text-[11px] text-stone-400 leading-relaxed">
+                    Select any piece or outfit from your Wardrobe to dress the 3D figure and view in 360°.
+                  </p>
+                  <button
+                    onClick={() => onSelectAlternative('wardrobe')}
+                    className="mt-2 px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black text-[10px] font-bold uppercase tracking-wider transition-colors"
+                  >
+                    Browse Wardrobe
                   </button>
                 </div>
               )}

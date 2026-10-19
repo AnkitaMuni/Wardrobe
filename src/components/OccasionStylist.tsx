@@ -14,7 +14,9 @@ import {
   ArrowRight,
   Sun,
   Flame,
-  Zap
+  Zap,
+  Plus,
+  Shirt
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -23,6 +25,7 @@ interface OccasionStylistProps {
   onTryOnOutfit: (outfit: OutfitPair) => void;
   savedOutfits: OutfitPair[];
   onToggleSaveOutfit: (outfit: OutfitPair) => void;
+  onNavigateToWardrobe?: () => void;
 }
 
 export const OccasionStylist: React.FC<OccasionStylistProps> = ({
@@ -30,6 +33,7 @@ export const OccasionStylist: React.FC<OccasionStylistProps> = ({
   onTryOnOutfit,
   savedOutfits,
   onToggleSaveOutfit,
+  onNavigateToWardrobe,
 }) => {
   const [selectedOccasion, setSelectedOccasion] = useState<OccasionType>('beachwear');
   const [customQuery, setCustomQuery] = useState<string>('');
@@ -37,7 +41,7 @@ export const OccasionStylist: React.FC<OccasionStylistProps> = ({
   const [outfitOptions, setOutfitOptions] = useState<OutfitPair[]>([]);
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
 
-  // Generate 5 options whenever occasion changes
+  // Generate 5 options whenever occasion or wardrobe changes
   const runStylistEngine = (occasionKey: string, customName?: string) => {
     setIsGenerating(true);
     setTimeout(() => {
@@ -49,7 +53,11 @@ export const OccasionStylist: React.FC<OccasionStylistProps> = ({
   };
 
   useEffect(() => {
-    runStylistEngine('beachwear', 'Beachwear & Resort');
+    if (wardrobe.length > 0) {
+      runStylistEngine('beachwear', 'Beachwear & Resort');
+    } else {
+      setOutfitOptions([]);
+    }
   }, [wardrobe]);
 
   const handleOccasionSelect = (occ: OccasionConfig) => {
@@ -73,6 +81,32 @@ export const OccasionStylist: React.FC<OccasionStylistProps> = ({
       colors: ['#D4AF37', '#F5E6D3', '#E8A598', '#98A892']
     });
   };
+
+  // If wardrobe is completely empty
+  if (wardrobe.length === 0) {
+    return (
+      <div className="py-20 px-6 max-w-xl mx-auto text-center space-y-6 animate-fade-in">
+        <div className="w-20 h-20 rounded-3xl bg-amber-500/10 border border-amber-500/30 text-amber-400 mx-auto flex items-center justify-center">
+          <Shirt className="w-10 h-10 stroke-[1.7]" />
+        </div>
+        <div className="space-y-2">
+          <h2 className="font-serif text-2xl font-bold text-white">Your Closet is Empty</h2>
+          <p className="text-xs text-stone-400 leading-relaxed">
+            Drag & drop your clothing photos in the Wardrobe tab. Once you add items, our AI styling engine will automatically assemble 5 cohesive outfit options for any occasion!
+          </p>
+        </div>
+        {onNavigateToWardrobe && (
+          <button
+            onClick={onNavigateToWardrobe}
+            className="px-6 py-3 rounded-2xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs uppercase tracking-wider inline-flex items-center gap-2 shadow-lg transition-all"
+          >
+            <Plus className="w-4 h-4 stroke-[3]" />
+            <span>Go to Wardrobe to Add Clothes</span>
+          </button>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -147,7 +181,7 @@ export const OccasionStylist: React.FC<OccasionStylistProps> = ({
         </div>
 
         <span className="px-3 py-1 rounded-full text-xs font-mono font-medium bg-white/5 border border-white/10 text-stone-300">
-          Showing 5 of 5 pairs
+          Showing {outfitOptions.length} pairs
         </span>
       </div>
 
@@ -158,6 +192,21 @@ export const OccasionStylist: React.FC<OccasionStylistProps> = ({
           <p className="text-xs font-mono text-stone-400 uppercase tracking-widest animate-pulse">
             Analyzing Closet Silhouettes & Color Harmonies...
           </p>
+        </div>
+      ) : outfitOptions.length === 0 ? (
+        <div className="p-8 rounded-3xl bg-[#14141C] border border-white/10 text-center space-y-3">
+          <p className="text-sm font-semibold text-white">More pieces needed for complete outfits</p>
+          <p className="text-xs text-stone-400 max-w-md mx-auto">
+            You need at least 1 top and 1 bottom (or dress) in your wardrobe to generate full pairings.
+          </p>
+          {onNavigateToWardrobe && (
+            <button
+              onClick={onNavigateToWardrobe}
+              className="px-4 py-2 rounded-xl bg-amber-500 text-black text-xs font-bold uppercase tracking-wider"
+            >
+              Add Pieces
+            </button>
+          )}
         </div>
       ) : (
         <div className="space-y-6">

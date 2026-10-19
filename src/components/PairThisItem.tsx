@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Garment, OutfitPair } from '../types';
 import { pairSpecificGarment } from '../utils/outfitEngine';
 import { 
@@ -11,25 +11,65 @@ import {
   ArrowRight, 
   Zap,
   Tag,
-  CheckCircle2
+  CheckCircle2,
+  Shirt,
+  Plus
 } from 'lucide-react';
 
 interface PairThisItemProps {
   wardrobe: Garment[];
   onTryOnOutfit: (outfit: OutfitPair) => void;
   selectedGarmentId?: string;
+  onNavigateToWardrobe?: () => void;
 }
 
 export const PairThisItem: React.FC<PairThisItemProps> = ({
   wardrobe,
   onTryOnOutfit,
   selectedGarmentId,
+  onNavigateToWardrobe,
 }) => {
-  // Default to the first top or selected garment
-  const initialGarment = wardrobe.find(g => g.id === selectedGarmentId) || wardrobe.find(g => g.category === 'top') || wardrobe[0];
-  const [selectedAnchor, setSelectedAnchor] = useState<Garment>(initialGarment);
+  const [selectedAnchor, setSelectedAnchor] = useState<Garment | undefined>(() => {
+    return wardrobe.find(g => g.id === selectedGarmentId) || wardrobe[0];
+  });
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
+
+  // Keep anchor in sync if wardrobe changes or selectedGarmentId changes
+  useEffect(() => {
+    if (selectedGarmentId) {
+      const match = wardrobe.find(g => g.id === selectedGarmentId);
+      if (match) setSelectedAnchor(match);
+    } else if (!selectedAnchor && wardrobe.length > 0) {
+      setSelectedAnchor(wardrobe[0]);
+    }
+  }, [selectedGarmentId, wardrobe]);
+
+  // If wardrobe is empty
+  if (wardrobe.length === 0) {
+    return (
+      <div className="py-20 px-6 max-w-xl mx-auto text-center space-y-6 animate-fade-in">
+        <div className="w-20 h-20 rounded-3xl bg-amber-500/10 border border-amber-500/30 text-amber-400 mx-auto flex items-center justify-center">
+          <Shirt className="w-10 h-10 stroke-[1.7]" />
+        </div>
+        <div className="space-y-2">
+          <h2 className="font-serif text-2xl font-bold text-white">No Pieces to Pair Yet</h2>
+          <p className="text-xs text-stone-400 leading-relaxed">
+            Drag & drop images of your clothes in the Wardrobe tab. Once added, you can select any shirt, pants, or jacket to instantly reveal all compatible outfit pairings!
+          </p>
+        </div>
+        {onNavigateToWardrobe && (
+          <button
+            onClick={onNavigateToWardrobe}
+            className="px-6 py-3 rounded-2xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs uppercase tracking-wider inline-flex items-center gap-2 shadow-lg transition-all"
+          >
+            <Plus className="w-4 h-4 stroke-[3]" />
+            <span>Go to Wardrobe & Add Clothes</span>
+          </button>
+        )}
+      </div>
+    );
+  }
 
   // Generated pairings built around this anchor item
   const pairedOutfits = selectedAnchor ? pairSpecificGarment(selectedAnchor, wardrobe) : [];
@@ -178,81 +218,90 @@ export const PairThisItem: React.FC<PairThisItemProps> = ({
           </span>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {pairedOutfits.map((pair, index) => {
-            const pieces = [
-              pair.top,
-              pair.bottom,
-              pair.dress,
-              pair.outerwear,
-              pair.footwear,
-              pair.accessory,
-            ].filter(Boolean) as Garment[];
+        {pairedOutfits.length === 0 ? (
+          <div className="p-8 rounded-3xl bg-[#14141C] border border-white/10 text-center space-y-2">
+            <p className="text-sm font-semibold text-white">Need more pieces to create pairings</p>
+            <p className="text-xs text-stone-400">
+              Add more tops, bottoms, or shoes in your wardrobe to pair with this piece.
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {pairedOutfits.map((pair, index) => {
+              const pieces = [
+                pair.top,
+                pair.bottom,
+                pair.dress,
+                pair.outerwear,
+                pair.footwear,
+                pair.accessory,
+              ].filter(Boolean) as Garment[];
 
-            return (
-              <div
-                key={pair.id}
-                className="group rounded-3xl bg-[#14141C] border border-white/10 hover:border-amber-500/40 transition-all p-5 shadow-xl flex flex-col justify-between"
-              >
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-white/5 text-stone-300 border border-white/10">
-                      Combo #{index + 1}
-                    </span>
-                    <div className="flex items-center gap-1 text-xs font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
-                      <CheckCircle2 className="w-3 h-3" />
-                      {pair.matchScore}% Match
+              return (
+                <div
+                  key={pair.id}
+                  className="group rounded-3xl bg-[#14141C] border border-white/10 hover:border-amber-500/40 transition-all p-5 shadow-xl flex flex-col justify-between"
+                >
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-white/5 text-stone-300 border border-white/10">
+                        Combo #{index + 1}
+                      </span>
+                      <div className="flex items-center gap-1 text-xs font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                        <CheckCircle2 className="w-3 h-3" />
+                        {pair.matchScore}% Match
+                      </div>
+                    </div>
+
+                    <h4 className="font-serif text-base font-bold text-white group-hover:text-amber-300 transition-colors">
+                      {pair.title}
+                    </h4>
+                    <p className="text-xs text-stone-400 mt-1 leading-relaxed">
+                      {pair.stylistNote}
+                    </p>
+
+                    {/* Paired Garments Mini Thumbnails */}
+                    <div className="mt-4 grid grid-cols-4 gap-2">
+                      {pieces.map((piece) => {
+                        const isAnchor = selectedAnchor && piece.id === selectedAnchor.id;
+                        return (
+                          <div
+                            key={piece.id}
+                            className={`relative rounded-xl overflow-hidden border aspect-[3/4] ${
+                              isAnchor
+                                ? 'border-amber-400 ring-2 ring-amber-400/40'
+                                : 'border-white/10'
+                            }`}
+                          >
+                            <img
+                              src={piece.imageUrl}
+                              alt={piece.name}
+                              className="w-full h-full object-cover"
+                            />
+                            <span className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded text-[8px] font-bold uppercase bg-black/80 text-white">
+                              {piece.category}
+                            </span>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
 
-                  <h4 className="font-serif text-base font-bold text-white group-hover:text-amber-300 transition-colors">
-                    {pair.title}
-                  </h4>
-                  <p className="text-xs text-stone-400 mt-1 leading-relaxed">
-                    {pair.stylistNote}
-                  </p>
-
-                  {/* Paired Garments Mini Thumbnails */}
-                  <div className="mt-4 grid grid-cols-4 gap-2">
-                    {pieces.map((piece) => {
-                      const isAnchor = piece.id === selectedAnchor.id;
-                      return (
-                        <div
-                          key={piece.id}
-                          className={`relative rounded-xl overflow-hidden border aspect-[3/4] ${
-                            isAnchor
-                              ? 'border-amber-400 ring-2 ring-amber-400/40'
-                              : 'border-white/10'
-                          }`}
-                        >
-                          <img
-                            src={piece.imageUrl}
-                            alt={piece.name}
-                            className="w-full h-full object-cover"
-                          />
-                          <span className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded text-[8px] font-bold uppercase bg-black/80 text-white">
-                            {piece.category}
-                          </span>
-                        </div>
-                      );
-                    })}
+                  {/* Try On Button */}
+                  <div className="mt-5 pt-4 border-t border-white/10">
+                    <button
+                      onClick={() => onTryOnOutfit(pair)}
+                      className="w-full py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-md group-hover:shadow-amber-500/20"
+                    >
+                      <Rotate3d className="w-4 h-4" />
+                      <span>Try On This Combo in 360°</span>
+                    </button>
                   </div>
                 </div>
-
-                {/* Try On Button */}
-                <div className="mt-5 pt-4 border-t border-white/10">
-                  <button
-                    onClick={() => onTryOnOutfit(pair)}
-                    className="w-full py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-md group-hover:shadow-amber-500/20"
-                  >
-                    <Rotate3d className="w-4 h-4" />
-                    <span>Try On This Combo in 360°</span>
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

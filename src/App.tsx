@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Garment, OutfitPair } from './types';
-import { INITIAL_WARDROBE } from './data/wardrobeSeed';
+import { INITIAL_WARDROBE, DEMO_WARDROBE } from './data/wardrobeSeed';
 import { Navbar } from './components/Navbar';
 import { WardrobeView } from './components/WardrobeView';
 import { OccasionStylist } from './components/OccasionStylist';
@@ -10,7 +10,7 @@ import { GooglePhotosScanner } from './components/GooglePhotosScanner';
 import { AiStylistChat } from './components/AiStylistChat';
 
 export function App() {
-  // Wardrobe State (with localStorage persistence)
+  // Wardrobe State: starts empty so user can drag & drop their clothes from scratch!
   const [wardrobe, setWardrobe] = useState<Garment[]>(() => {
     try {
       const saved = localStorage.getItem('wardrobe_items');
@@ -44,15 +44,10 @@ export function App() {
     outerwear?: Garment;
     footwear?: Garment;
     accessory?: Garment;
-  }>({
-    top: INITIAL_WARDROBE.find(g => g.id === 'top-1'),
-    bottom: INITIAL_WARDROBE.find(g => g.id === 'bottom-1'),
-    footwear: INITIAL_WARDROBE.find(g => g.id === 'shoe-1'),
-    accessory: INITIAL_WARDROBE.find(g => g.id === 'acc-1'),
-  });
+  }>({});
 
   // Selected item ID for the "Pair an Item" tab
-  const [pairingGarmentId, setPairingGarmentId] = useState<string | undefined>('top-1');
+  const [pairingGarmentId, setPairingGarmentId] = useState<string | undefined>(undefined);
 
   // Persist Wardrobe and Outfits
   useEffect(() => {
@@ -123,16 +118,56 @@ export function App() {
   // Handler: Delete Garment
   const handleDeleteGarment = (garmentId: string) => {
     setWardrobe(prev => prev.filter(item => item.id !== garmentId));
+    // Also remove from dressing room if currently worn
+    setDressingRoomGarments(prev => {
+      const copy = { ...prev };
+      Object.keys(copy).forEach(k => {
+        const cat = k as keyof typeof copy;
+        if (copy[cat]?.id === garmentId) {
+          delete copy[cat];
+        }
+      });
+      return copy;
+    });
   };
 
   // Handler: Add New Garment
   const handleAddNewGarment = (garment: Garment) => {
     setWardrobe(prev => [garment, ...prev]);
+    // If it's the very first garment, pre-select it
+    if (!pairingGarmentId) {
+      setPairingGarmentId(garment.id);
+    }
+  };
+
+  // Handler: Clear all clothes to start clean
+  const handleClearAllWardrobe = () => {
+    setWardrobe([]);
+    setDressingRoomOutfit(null);
+    setDressingRoomGarments({});
+    setPairingGarmentId(undefined);
+    setSavedOutfits([]);
+    localStorage.removeItem('wardrobe_items');
+    localStorage.removeItem('saved_outfits');
+  };
+
+  // Handler: Load sample demo clothes if requested
+  const handleLoadDemoWardrobe = () => {
+    setWardrobe(DEMO_WARDROBE);
+    if (DEMO_WARDROBE.length > 0) {
+      setPairingGarmentId(DEMO_WARDROBE[0].id);
+      setDressingRoomGarments({
+        top: DEMO_WARDROBE.find(g => g.id === 'top-1'),
+        bottom: DEMO_WARDROBE.find(g => g.id === 'bottom-1'),
+        footwear: DEMO_WARDROBE.find(g => g.id === 'shoe-1'),
+      });
+    }
   };
 
   // Handler: Import Garments Extracted from Google Photos
   const handleImportFromGooglePhotos = (newGarments: Garment[]) => {
     setWardrobe(prev => [...newGarments, ...prev]);
+    setActiveTab('wardrobe');
   };
 
   // Handler: Save / Unsave Outfit
@@ -173,6 +208,8 @@ export function App() {
             onToggleFavorite={handleToggleFavorite}
             onDeleteGarment={handleDeleteGarment}
             onAddNewGarment={handleAddNewGarment}
+            onClearAllWardrobe={handleClearAllWardrobe}
+            onLoadDemoWardrobe={handleLoadDemoWardrobe}
           />
         )}
 
@@ -182,6 +219,7 @@ export function App() {
             onTryOnOutfit={handleTryOnOutfit}
             savedOutfits={savedOutfits}
             onToggleSaveOutfit={handleToggleSaveOutfit}
+            onNavigateToWardrobe={() => setActiveTab('wardrobe')}
           />
         )}
 
@@ -190,6 +228,7 @@ export function App() {
             wardrobe={wardrobe}
             onTryOnOutfit={handleTryOnOutfit}
             selectedGarmentId={pairingGarmentId}
+            onNavigateToWardrobe={() => setActiveTab('wardrobe')}
           />
         )}
 
